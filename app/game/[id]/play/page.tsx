@@ -167,6 +167,7 @@ export default function PlayPage() {
       setGame(gameData);
       setWinnerInfo(null);
       setBingoResult(null);
+      setCallingBingo(false);
     };
 
     const onNumber = (data: { number: number; calledNumbers: number[] }) => {
@@ -177,6 +178,7 @@ export default function PlayPage() {
     const onWinner = (data: { playerName: string; round: number }) => {
       setGame((prev) => (prev ? { ...prev, status: "finished" } : prev));
       setWinnerInfo(data);
+      setCallingBingo(false);
     };
 
     const onBingoInvalid = () => {
@@ -197,6 +199,7 @@ export default function PlayPage() {
       setLastNumber(null);
       setWinnerInfo(null);
       setBingoResult(null);
+      setCallingBingo(false);
       // Buscar los datos actualizados de este jugador
       const me = data.players.find((p) => p._id === player?._id);
       if (me) {
