@@ -49,6 +49,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import TuneIcon from '@mui/icons-material/Tune';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import GridViewIcon from '@mui/icons-material/GridView';
+import StopCircleIcon from '@mui/icons-material/StopCircle';
 import { useSocket } from '@/app/hooks/useSocket';
 
 // Animaciones
@@ -138,6 +139,8 @@ export default function AdminPage() {
   } | null>(null);
   const [starting, setStarting] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [showFinish, setShowFinish] = useState(false);
 
   const getToken = useCallback(
     () => localStorage.getItem(`admin:${gameId}`) || '',
@@ -214,11 +217,18 @@ export default function AdminPage() {
       setRestarting(false);
     };
 
+    const onFinished = (data: { game: GameData }) => {
+      setGame(data.game);
+      setFinishing(false);
+      setShowFinish(false);
+    };
+
     const onError = (msg: string) => {
       setActionError(msg);
       setDrawing(false);
       setStarting(false);
       setRestarting(false);
+      setFinishing(false);
       if (loading) {
         setError(msg);
         setLoading(false);
@@ -232,6 +242,7 @@ export default function AdminPage() {
     socket.on('game:winner', onWinner);
     socket.on('game:bingo-attempt', onBingoAttempt);
     socket.on('game:restarted', onRestarted);
+    socket.on('game:finished', onFinished);
     socket.on('error', onError);
 
     return () => {
@@ -242,6 +253,7 @@ export default function AdminPage() {
       socket.off('game:winner', onWinner);
       socket.off('game:bingo-attempt', onBingoAttempt);
       socket.off('game:restarted', onRestarted);
+      socket.off('game:finished', onFinished);
       socket.off('error', onError);
     };
   }, [socket, gameId, getToken, loading]);
@@ -269,6 +281,13 @@ export default function AdminPage() {
       token: getToken(),
       type: restartType,
     });
+  };
+
+  const handleFinish = () => {
+    if (!socket || finishing) return;
+    setActionError('');
+    setFinishing(true);
+    socket.emit('game:finish', { gameId, token: getToken() });
   };
 
   const handleCopyCode = () => {
@@ -686,6 +705,46 @@ export default function AdminPage() {
                       >
                         {drawing ? 'Sacando...' : 'Sacar balota'}
                       </Button>
+
+                      <Divider />
+
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        startIcon={<StopCircleIcon />}
+                        onClick={() => setShowFinish((prev) => !prev)}
+                        fullWidth
+                      >
+                        {showFinish ? 'Cancelar' : 'Finalizar partida'}
+                      </Button>
+
+                      <Collapse in={showFinish}>
+                        <Stack spacing={1.5} sx={{ mt: 1 }}>
+                          <Alert severity="warning" variant="outlined">
+                            Esto finalizará la ronda sin ganador. ¿Estás seguro?
+                          </Alert>
+                          <Button
+                            variant="contained"
+                            color="error"
+                            startIcon={
+                              finishing ? (
+                                <CircularProgress
+                                  size={20}
+                                  color="inherit"
+                                />
+                              ) : (
+                                <StopCircleIcon />
+                              )
+                            }
+                            onClick={handleFinish}
+                            disabled={finishing}
+                            fullWidth
+                          >
+                            {finishing ? 'Finalizando...' : 'Confirmar finalización'}
+                          </Button>
+                        </Stack>
+                      </Collapse>
                     </Stack>
                   )}
 

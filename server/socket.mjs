@@ -266,6 +266,36 @@ export function setupSocket(httpServer) {
       }
     });
 
+    // Finalizar partida manualmente (solo admin)
+    socket.on("game:finish", async ({ gameId, token }) => {
+      try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+        if (!(await isAdmin(gameId, token))) {
+          return socket.emit("error", "Solo el administrador puede finalizar la partida");
+        }
+
+        const game = await Game.findById(gameId);
+        if (!game) return socket.emit("error", "Partida no encontrada");
+        if (game.status !== "playing") {
+          return socket.emit("error", "La partida no está en curso");
+        }
+
+        game.status = "finished";
+        await game.save();
+
+        io.to(`game:${gameId}`).emit("game:finished", {
+          game: game.toObject(),
+        });
+
+        console.log(`⏹️ Partida "${game.name}" finalizada manualmente por el admin`);
+      } catch (err) {
+        console.error("Error al finalizar partida:", err);
+        socket.emit("error", "No se pudo finalizar la partida");
+      }
+    });
+
     // Jugador canta BINGO
     socket.on("game:bingo", async ({ gameId, token }) => {
       try {

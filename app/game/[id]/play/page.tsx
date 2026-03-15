@@ -33,6 +33,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
 import GridViewIcon from "@mui/icons-material/GridView";
+import StopCircleIcon from "@mui/icons-material/StopCircle";
 import { useSocket } from "@/app/hooks/useSocket";
 
 // Animaciones
@@ -207,6 +208,11 @@ export default function PlayPage() {
       }
     };
 
+    const onFinished = (data: { game: GameData }) => {
+      setGame(data.game);
+      setCallingBingo(false);
+    };
+
     const onError = (msg: string) => {
       if (loading) {
         setError(msg);
@@ -222,6 +228,7 @@ export default function PlayPage() {
     socket.on("game:bingo-invalid", onBingoInvalid);
     socket.on("game:bingo-attempt", onBingoAttempt);
     socket.on("game:restarted", onRestarted);
+    socket.on("game:finished", onFinished);
     socket.on("error", onError);
 
     return () => {
@@ -232,6 +239,7 @@ export default function PlayPage() {
       socket.off("game:bingo-invalid", onBingoInvalid);
       socket.off("game:bingo-attempt", onBingoAttempt);
       socket.off("game:restarted", onRestarted);
+      socket.off("game:finished", onFinished);
       socket.off("error", onError);
     };
   }, [socket, gameId, getToken, loading, player?._id, player?.name]);
@@ -522,6 +530,28 @@ export default function PlayPage() {
                       }}
                     />
                   )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grow>
+        )}
+
+        {/* Partida finalizada por el admin (sin ganador) */}
+        {game.status === "finished" && !winnerInfo && (
+          <Grow in timeout={500}>
+            <Card
+              variant="outlined"
+              sx={{ mb: 2, borderColor: "error.main" }}
+            >
+              <CardContent>
+                <Stack alignItems="center" spacing={1} sx={{ py: 1 }}>
+                  <StopCircleIcon sx={{ fontSize: 48, color: "error.main" }} />
+                  <Typography variant="h6" align="center">
+                    El administrador finalizó la partida
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" align="center">
+                    Ronda {game.round} terminada sin ganador
+                  </Typography>
                 </Stack>
               </CardContent>
             </Card>
