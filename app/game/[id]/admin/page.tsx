@@ -50,6 +50,9 @@ import TuneIcon from '@mui/icons-material/Tune';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import GridViewIcon from '@mui/icons-material/GridView';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useSocket } from '@/app/hooks/useSocket';
 
 // Animaciones
@@ -121,7 +124,7 @@ export default function AdminPage() {
   const params = useParams();
   const router = useRouter();
   const gameId = params.id as string;
-  const { socket } = useSocket();
+  const { socket, isConnected, isReconnecting, reconnectFailed, manualReconnect } = useSocket();
 
   const [game, setGame] = useState<GameData | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -146,6 +149,16 @@ export default function AdminPage() {
     () => localStorage.getItem(`admin:${gameId}`) || '',
     [gameId],
   );
+
+  // Re-emitir reconexión cuando el socket se reconecta
+  useEffect(() => {
+    if (isConnected && socket && gameId && !loading) {
+      const token = getToken();
+      if (token) {
+        socket.emit('game:reconnect-admin', { gameId, token });
+      }
+    }
+  }, [isConnected, socket, gameId, loading, getToken]);
 
   useEffect(() => {
     if (!socket || !gameId) return;
@@ -409,15 +422,37 @@ export default function AdminPage() {
                   >
                     {game.name}
                   </Typography>
+                  <Tooltip title="Volver al inicio">
+                    <IconButton
+                      onClick={() => router.push('/')}
+                      size="small"
+                      sx={{ color: 'primary.contrastText' }}
+                    >
+                      <HomeIcon />
+                    </IconButton>
+                  </Tooltip>
                 </Stack>
-                <Tooltip title="Volver al inicio">
-                  <IconButton
-                    onClick={() => router.push('/')}
-                    size="small"
-                    sx={{ color: 'primary.contrastText' }}
+                <Tooltip title={isConnected ? 'Conectado' : isReconnecting ? 'Reconectando...' : 'Desconectado'}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      bgcolor: 'white',
+                      color: isConnected ? 'success.main' : isReconnecting ? 'warning.main' : 'error.main',
+                    }}
                   >
-                    <HomeIcon />
-                  </IconButton>
+                    {isConnected ? (
+                      <WifiIcon fontSize="small" />
+                    ) : isReconnecting ? (
+                      <RefreshIcon fontSize="small" sx={{ animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />
+                    ) : (
+                      <WifiOffIcon fontSize="small" />
+                    )}
+                  </Box>
                 </Tooltip>
               </Stack>
               <Stack
@@ -543,6 +578,33 @@ export default function AdminPage() {
             {bingoAttempt?.valid
               ? `¡${bingoAttempt.playerName} cantó BINGO correctamente!`
               : `${bingoAttempt?.playerName} cantó BINGO falso`}
+          </Alert>
+        </Collapse>
+
+        {/* Alerta de desconexión */}
+        <Collapse in={!isConnected && !loading}>
+          <Alert
+            severity={isReconnecting ? 'warning' : 'error'}
+            icon={isReconnecting ? <RefreshIcon sx={{ animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} /> : <WifiOffIcon />}
+            action={
+              reconnectFailed && !isReconnecting ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={manualReconnect}
+                >
+                  Reintentar
+                </Button>
+              ) : null
+            }
+            sx={{ mb: 2 }}
+          >
+            {isReconnecting
+              ? 'Reconectando al servidor...'
+              : reconnectFailed
+                ? 'No se pudo reconectar. Haz clic en Reintentar.'
+                : 'Conexión perdida con el servidor'}
           </Alert>
         </Collapse>
 

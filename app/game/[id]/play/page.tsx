@@ -34,6 +34,9 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
 import GridViewIcon from "@mui/icons-material/GridView";
 import StopCircleIcon from "@mui/icons-material/StopCircle";
+import WifiIcon from "@mui/icons-material/Wifi";
+import WifiOffIcon from "@mui/icons-material/WifiOff";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useSocket } from "@/app/hooks/useSocket";
 
 // Animaciones
@@ -107,7 +110,7 @@ export default function PlayPage() {
   const params = useParams();
   const router = useRouter();
   const gameId = params.id as string;
-  const { socket } = useSocket();
+  const { socket, isConnected, isReconnecting, reconnectFailed, manualReconnect } = useSocket();
 
   const [game, setGame] = useState<GameData | null>(null);
   const [player, setPlayer] = useState<PlayerData | null>(null);
@@ -119,6 +122,16 @@ export default function PlayPage() {
   const [winnerInfo, setWinnerInfo] = useState<{ playerName: string; round: number } | null>(null);
 
   const getToken = useCallback(() => localStorage.getItem(`player:${gameId}`) || "", [gameId]);
+
+  // Re-emitir reconexión cuando el socket se reconecta
+  useEffect(() => {
+    if (isConnected && socket && gameId && !loading) {
+      const token = getToken();
+      if (token) {
+        socket.emit("game:reconnect-player", { gameId, token });
+      }
+    }
+  }, [isConnected, socket, gameId, loading, getToken]);
 
   // Obtener color de columna para un número
   const getColumnColor = (num: number) => {
@@ -325,11 +338,33 @@ export default function PlayPage() {
                   >
                     {game.name}
                   </Typography>
+                  <Tooltip title="Volver al inicio">
+                    <IconButton onClick={() => router.push("/")} size="small" sx={{ color: "secondary.contrastText" }}>
+                      <HomeIcon />
+                    </IconButton>
+                  </Tooltip>
                 </Stack>
-                <Tooltip title="Volver al inicio">
-                  <IconButton onClick={() => router.push("/")} size="small" sx={{ color: "secondary.contrastText" }}>
-                    <HomeIcon />
-                  </IconButton>
+                <Tooltip title={isConnected ? "Conectado" : isReconnecting ? "Reconectando..." : "Desconectado"}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      bgcolor: "white",
+                      color: isConnected ? "success.main" : isReconnecting ? "warning.main" : "error.main",
+                    }}
+                  >
+                    {isConnected ? (
+                      <WifiIcon fontSize="small" />
+                    ) : isReconnecting ? (
+                      <RefreshIcon fontSize="small" sx={{ animation: "spin 1s linear infinite", "@keyframes spin": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } } }} />
+                    ) : (
+                      <WifiOffIcon fontSize="small" />
+                    )}
+                  </Box>
                 </Tooltip>
               </Stack>
               <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
@@ -363,6 +398,33 @@ export default function PlayPage() {
         <Collapse in={bingoResult === "invalid"}>
           <Alert severity="error" icon={<CancelIcon />} sx={{ mb: 2 }} onClose={() => setBingoResult(null)}>
             ¡Bingo falso! No cumples la condición de victoria
+          </Alert>
+        </Collapse>
+
+        {/* Alerta de desconexión */}
+        <Collapse in={!isConnected && !loading}>
+          <Alert
+            severity={isReconnecting ? "warning" : "error"}
+            icon={isReconnecting ? <RefreshIcon sx={{ animation: "spin 1s linear infinite", "@keyframes spin": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } } }} /> : <WifiOffIcon />}
+            action={
+              reconnectFailed && !isReconnecting ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={manualReconnect}
+                >
+                  Reintentar
+                </Button>
+              ) : null
+            }
+            sx={{ mb: 2 }}
+          >
+            {isReconnecting
+              ? "Reconectando al servidor..."
+              : reconnectFailed
+                ? "No se pudo reconectar. Haz clic en Reintentar."
+                : "Conexión perdida con el servidor"}
           </Alert>
         </Collapse>
 
