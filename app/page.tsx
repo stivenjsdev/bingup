@@ -39,6 +39,8 @@ import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutli
 import CategoryIcon from "@mui/icons-material/Category";
 import GroupIcon from "@mui/icons-material/Group";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import { useSocket } from "./hooks/useSocket";
 
 // Animaciones
@@ -78,6 +80,8 @@ interface AvailableGame {
   type: string;
   status: string;
   playerCount: number;
+  isAdmin?: boolean;
+  isPlayer?: boolean;
 }
 
 export default function Home() {
@@ -106,15 +110,36 @@ export default function Home() {
   const [availableGames, setAvailableGames] = useState<AvailableGame[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
 
+  // Recolectar tokens de localStorage para identificar partidas del usuario
+  const getStoredTokens = useCallback(() => {
+    const tokens: { admin: Record<string, string>; player: Record<string, string> } = {
+      admin: {},
+      player: {},
+    };
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith("admin:")) {
+        const gameId = key.replace("admin:", "");
+        tokens.admin[gameId] = localStorage.getItem(key) || "";
+      } else if (key.startsWith("player:")) {
+        const gameId = key.replace("player:", "");
+        tokens.player[gameId] = localStorage.getItem(key) || "";
+      }
+    }
+    return tokens;
+  }, []);
+
   const fetchGames = useCallback(() => {
     if (!socket) return;
     setLoadingGames(true);
-    socket.emit("game:list-waiting");
+    const tokens = getStoredTokens();
+    socket.emit("game:list-waiting", { tokens });
     socket.once("game:list-waiting", (games: AvailableGame[]) => {
       setAvailableGames(games);
       setLoadingGames(false);
     });
-  }, [socket]);
+  }, [socket, getStoredTokens]);
 
   // Cargar partidas al montar y cuando el socket se conecta
   useEffect(() => {
@@ -130,8 +155,19 @@ export default function Home() {
     };
   }, [socket, fetchGames]);
 
-  const selectGame = (gameId: string) => {
-    setGameCode(gameId);
+  const selectGame = (game: AvailableGame) => {
+    // Si es admin, ir directo al panel de admin
+    if (game.isAdmin) {
+      router.push(`/game/${game._id}/admin`);
+      return;
+    }
+    // Si es jugador de una partida en curso, ir directo a jugar
+    if (game.isPlayer && game.status === "playing") {
+      router.push(`/game/${game._id}/play`);
+      return;
+    }
+    // Si no, solo seleccionar el código para unirse
+    setGameCode(game._id);
   };
 
   const handleCreate = () => {
@@ -387,7 +423,7 @@ export default function Home() {
 
                   {availableGames.length === 0 ? (
                     <Typography variant="body2" color="text.disabled" sx={{ py: 1 }}>
-                      {loadingGames ? "Cargando..." : "No hay partidas en espera"}
+                      {loadingGames ? "Cargando..." : "No hay partidas disponibles"}
                     </Typography>
                   ) : (
                     <List disablePadding sx={{ maxHeight: 200, overflow: "auto" }}>
@@ -396,18 +432,48 @@ export default function Home() {
                           key={g._id}
                           disablePadding
                           secondaryAction={
-                            <Chip
-                              icon={<GroupIcon sx={{ fontSize: 16 }} />}
-                              label={g.playerCount}
-                              size="small"
-                              variant="outlined"
-                              sx={{ pl: 0.5, "& .MuiChip-icon": { ml: 0.5 } }}
-                            />
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              {g.status === "playing" && (
+                                <Chip
+                                  label="En curso"
+                                  size="small"
+                                  color="success"
+                                  sx={{ fontSize: "0.7rem", height: 20, px: 0.5 }}
+                                />
+                              )}
+                              {g.isAdmin && (
+                                <Chip
+                                  icon={<AdminPanelSettingsIcon sx={{ fontSize: 14 }} />}
+                                  label="Admin"
+                                  size="small"
+                                  color="primary"
+                                  sx={{ fontSize: "0.7rem", height: 20, px: 0.5, "& .MuiChip-icon": { ml: 0.5 } }}
+                                />
+                              )}
+                              {g.isPlayer && (
+                                <Chip
+                                  icon={<PersonOutlineIcon sx={{ fontSize: 14 }} />}
+                                  label="Jugador"
+                                  size="small"
+                                  color="secondary"
+                                  sx={{ fontSize: "0.7rem", height: 20, px: 0.5, "& .MuiChip-icon": { ml: 0.5 } }}
+                                />
+                              )}
+                              {!g.isAdmin && !g.isPlayer && (
+                                <Chip
+                                  icon={<GroupIcon sx={{ fontSize: 16 }} />}
+                                  label={g.playerCount}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ px: 0.5, "& .MuiChip-icon": { ml: 0.5 } }}
+                                />
+                              )}
+                            </Stack>
                           }
                         >
                           <ListItemButton
                             selected={gameCode === g._id}
-                            onClick={() => selectGame(g._id)}
+                            onClick={() => selectGame(g)}
                             sx={{
                               borderRadius: 1,
                               transition: "transform 0.15s, background-color 0.2s",
@@ -415,7 +481,11 @@ export default function Home() {
                             }}
                           >
                             <ListItemIcon sx={{ minWidth: 36 }}>
-                              <CasinoIcon fontSize="small" color="primary" />
+                              {g.status === "playing" ? (
+                                <PlayCircleIcon fontSize="small" color="success" />
+                              ) : (
+                                <CasinoIcon fontSize="small" color="primary" />
+                              )}
                             </ListItemIcon>
                             <ListItemText
                               primary={g.name}

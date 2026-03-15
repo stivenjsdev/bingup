@@ -52,25 +52,73 @@ export function setupSocket(httpServer) {
       }
     });
 
-    // Listar solo partidas en espera (optimizado para la pantalla de unirse)
-    socket.on("game:list-waiting", async () => {
+    // Listar partidas en espera + partidas en curso donde el usuario participa
+    socket.on("game:list-waiting", async (data) => {
       try {
-        const games = await Game.find({ status: "waiting" })
-          .select("name type status")
+        // Obtener tokens enviados por el cliente (partidas donde participa)
+        const tokens = data?.tokens || {};
+
+        // Partidas en espera (cualquiera puede verlas)
+        const waitingGames = await Game.find({ status: "waiting" })
+          .select("name type status adminToken")
           .sort({ createdAt: -1 })
           .lean();
 
-        const gamesWithCount = await Promise.all(
-          games.map(async (g) => ({
-            ...g,
-            playerCount: await Player.countDocuments({ game: g._id }),
-          }))
+        // Partidas en curso donde el usuario es admin o jugador
+        const playingGames = [];
+
+        // Buscar partidas por adminToken
+        const adminTokenValues = Object.values(tokens.admin || {});
+        if (adminTokenValues.length > 0) {
+          const adminGames = await Game.find({
+            status: "playing",
+            adminToken: { $in: adminTokenValues },
+          })
+            .select("name type status adminToken")
+            .lean();
+          playingGames.push(...adminGames);
+        }
+
+        // Buscar partidas por playerToken
+        const playerTokenEntries = Object.entries(tokens.player || {});
+        for (const [gameId, token] of playerTokenEntries) {
+          if (!isValidObjectId(gameId)) continue;
+          const player = await Player.findOne({ game: gameId, token }).lean();
+          if (player) {
+            const game = await Game.findOne({ _id: gameId, status: "playing" })
+              .select("name type status adminToken")
+              .lean();
+            if (game && !playingGames.some((g) => g._id.toString() === game._id.toString())) {
+              playingGames.push(game);
+            }
+          }
+        }
+
+        // Combinar y añadir información
+        const allGames = [...waitingGames, ...playingGames];
+
+        const gamesWithInfo = await Promise.all(
+          allGames.map(async (g) => {
+            const gameIdStr = g._id.toString();
+            const isAdmin = tokens.admin?.[gameIdStr] === g.adminToken;
+            const isPlayer = !!tokens.player?.[gameIdStr];
+
+            return {
+              _id: g._id,
+              name: g.name,
+              type: g.type,
+              status: g.status,
+              playerCount: await Player.countDocuments({ game: g._id }),
+              isAdmin,
+              isPlayer: isPlayer && !isAdmin,
+            };
+          })
         );
 
-        socket.emit("game:list-waiting", gamesWithCount);
+        socket.emit("game:list-waiting", gamesWithInfo);
       } catch (err) {
-        console.error("Error al listar partidas en espera:", err);
-        socket.emit("error", "No se pudieron listar las partidas en espera");
+        console.error("Error al listar partidas:", err);
+        socket.emit("error", "No se pudieron listar las partidas");
       }
     });
 
