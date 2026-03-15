@@ -41,7 +41,11 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import { useSocket } from "@/app/hooks/useSocket";
+import { useSoundEffects } from "@/app/hooks/useSoundEffects";
+import { useSoundContext } from "@/app/contexts/SoundContext";
 
 // Animaciones
 const dropIn = keyframes`
@@ -128,6 +132,12 @@ export default function PlayPage() {
   const router = useRouter();
   const gameId = params.id as string;
   const { socket, isConnected, isReconnecting, reconnectFailed, manualReconnect } = useSocket();
+  const { soundEnabled, toggleSound } = useSoundContext();
+  const sounds = useSoundEffects();
+
+  // Ref para los sonidos (para usar dentro de useEffect sin dependencias)
+  const soundsRef = useRef(sounds);
+  soundsRef.current = sounds;
 
   const [game, setGame] = useState<GameData | null>(null);
   const [player, setPlayer] = useState<PlayerData | null>(null);
@@ -145,6 +155,7 @@ export default function PlayPage() {
   const playersRef = useRef<{ _id: string; name: string; online: boolean }[]>([]);
   const isInitialLoadRef = useRef(true); // Ignorar primera carga de jugadores
   const playerIdRef = useRef<string | null>(null); // Para saber qué notificaciones ignorar
+  const playerNameRef = useRef<string | null>(null); // Para comparar en onWinner
 
   const getToken = useCallback(() => localStorage.getItem(`player:${gameId}`) || "", [gameId]);
 
@@ -250,6 +261,13 @@ export default function PlayPage() {
       // Agregar notificaciones (máximo 3 visibles a la vez)
       if (newNotifications.length > 0) {
         setNotifications((prev) => [...prev, ...newNotifications].slice(-3));
+        // Reproducir sonido según el tipo de la primera notificación
+        const firstType = newNotifications[0].type;
+        if (firstType === "join" || firstType === "reconnect") {
+          soundsRef.current.playPlayerJoin();
+        } else if (firstType === "leave") {
+          soundsRef.current.playPlayerLeave();
+        }
       }
     };
 
@@ -258,6 +276,7 @@ export default function PlayPage() {
         setGame(data.game);
         setPlayer(data.player);
         playerIdRef.current = data.player._id; // Guardar ID para filtrar notificaciones
+        playerNameRef.current = data.player.name; // Guardar nombre para comparar en onWinner
         setLoading(false);
         if (data.game.calledNumbers.length > 0) {
           setLastNumber(data.game.calledNumbers[data.game.calledNumbers.length - 1]);
@@ -270,22 +289,31 @@ export default function PlayPage() {
       setWinnerInfo(null);
       setBingoResult(null);
       setCallingBingo(false);
+      soundsRef.current.playGameStart();
     };
 
     const onNumber = (data: { number: number; calledNumbers: number[] }) => {
       setLastNumber(data.number);
       setGame((prev) => (prev ? { ...prev, calledNumbers: data.calledNumbers } : prev));
+      soundsRef.current.playBallCalled();
     };
 
     const onWinner = (data: { playerName: string; round: number }) => {
       setGame((prev) => (prev ? { ...prev, status: "finished" } : prev));
       setWinnerInfo(data);
       setCallingBingo(false);
+      // Reproducir sonido según si el jugador actual ganó o no
+      if (data.playerName === playerNameRef.current) {
+        soundsRef.current.playBingoWin();
+      } else {
+        soundsRef.current.playBingoCalled();
+      }
     };
 
     const onBingoInvalid = () => {
       setBingoResult("invalid");
       setCallingBingo(false);
+      soundsRef.current.playBingoFalse();
       setTimeout(() => setBingoResult(null), 4000);
     };
 
@@ -312,11 +340,13 @@ export default function PlayPage() {
     const onFinished = (data: { game: GameData }) => {
       setGame(data.game);
       setCallingBingo(false);
+      soundsRef.current.playGameEnd();
     };
 
     const onCardChanged = (data: { card: number[][] }) => {
       // Activar animación
       setCardAnimating(true);
+      soundsRef.current.playCardShuffle();
       // Actualizar cartón después de que inicie la animación
       setTimeout(() => {
         setPlayer((prev) => prev ? { ...prev, card: data.card, markedNumbers: [] } : prev);
@@ -368,6 +398,7 @@ export default function PlayPage() {
     if (player?.markedNumbers.includes(num)) return;
 
     socket.emit("game:mark", { gameId, number: num, token: getToken() });
+    sounds.playMark();
     // Actualizar localmente para feedback inmediato
     setPlayer((prev) =>
       prev ? { ...prev, markedNumbers: [...prev.markedNumbers, num] } : prev
@@ -377,6 +408,7 @@ export default function PlayPage() {
   const handleBingo = () => {
     if (!socket || callingBingo) return;
     setCallingBingo(true);
+    sounds.playClick();
     socket.emit("game:bingo", { gameId, token: getToken() });
   };
 
@@ -460,28 +492,45 @@ export default function PlayPage() {
                     </IconButton>
                   </Tooltip>
                 </Stack>
-                <Tooltip title={isConnected ? "Conectado" : isReconnecting ? "Reconectando..." : "Desconectado"}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      bgcolor: "white",
-                      color: isConnected ? "success.main" : isReconnecting ? "warning.main" : "error.main",
-                    }}
-                  >
-                    {isConnected ? (
-                      <WifiIcon fontSize="small" />
-                    ) : isReconnecting ? (
-                      <RefreshIcon fontSize="small" sx={{ animation: "spin 1s linear infinite", "@keyframes spin": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } } }} />
-                    ) : (
-                      <WifiOffIcon fontSize="small" />
-                    )}
-                  </Box>
-                </Tooltip>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Tooltip title={soundEnabled ? "Silenciar sonidos" : "Activar sonidos"}>
+                    <IconButton
+                      onClick={toggleSound}
+                      size="small"
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        bgcolor: "white",
+                        color: soundEnabled ? "primary.main" : "text.disabled",
+                        "&:hover": { bgcolor: "grey.100" },
+                      }}
+                    >
+                      {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={isConnected ? "Conectado" : isReconnecting ? "Reconectando..." : "Desconectado"}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        bgcolor: "white",
+                        color: isConnected ? "success.main" : isReconnecting ? "warning.main" : "error.main",
+                      }}
+                    >
+                      {isConnected ? (
+                        <WifiIcon fontSize="small" />
+                      ) : isReconnecting ? (
+                        <RefreshIcon fontSize="small" sx={{ animation: "spin 1s linear infinite", "@keyframes spin": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } } }} />
+                      ) : (
+                        <WifiOffIcon fontSize="small" />
+                      )}
+                    </Box>
+                  </Tooltip>
+                </Stack>
               </Stack>
               <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
                 <Chip label={statusInfo.label} color={statusInfo.color} size="small" sx={{ px: 0.75 }} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Container,
@@ -53,7 +53,11 @@ import StopCircleIcon from '@mui/icons-material/StopCircle';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import { useSocket } from '@/app/hooks/useSocket';
+import { useSoundEffects } from '@/app/hooks/useSoundEffects';
+import { useSoundContext } from '@/app/contexts/SoundContext';
 
 // Animaciones
 const dropIn = keyframes`
@@ -125,6 +129,8 @@ export default function AdminPage() {
   const router = useRouter();
   const gameId = params.id as string;
   const { socket, isConnected, isReconnecting, reconnectFailed, manualReconnect } = useSocket();
+  const { soundEnabled, toggleSound } = useSoundContext();
+  const sounds = useSoundEffects();
 
   const [game, setGame] = useState<GameData | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -144,6 +150,10 @@ export default function AdminPage() {
   const [restarting, setRestarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [showFinish, setShowFinish] = useState(false);
+
+  // Ref para los sonidos (para usar dentro de useEffect)
+  const soundsRef = useRef(sounds);
+  soundsRef.current = sounds;
 
   const getToken = useCallback(
     () => localStorage.getItem(`admin:${gameId}`) || '',
@@ -196,6 +206,7 @@ export default function AdminPage() {
     const onStarted = (gameData: GameData) => {
       setGame(gameData);
       setStarting(false);
+      soundsRef.current.playGameStart();
     };
 
     const onNumber = (data: { number: number; calledNumbers: number[] }) => {
@@ -204,6 +215,7 @@ export default function AdminPage() {
       setGame((prev) =>
         prev ? { ...prev, calledNumbers: data.calledNumbers } : prev,
       );
+      soundsRef.current.playBallDraw();
     };
 
     const onWinner = (data: {
@@ -214,10 +226,16 @@ export default function AdminPage() {
       setGame((prev) =>
         prev ? { ...prev, status: 'finished', winners: data.winners } : prev,
       );
+      soundsRef.current.playBingoWin();
     };
 
     const onBingoAttempt = (data: { playerName: string; valid: boolean }) => {
       setBingoAttempt(data);
+      if (data.valid) {
+        soundsRef.current.playBingoCalled();
+      } else {
+        soundsRef.current.playBingoFalse();
+      }
       setTimeout(() => setBingoAttempt(null), 4000);
     };
 
@@ -228,12 +246,14 @@ export default function AdminPage() {
       setShowRestart(false);
       setRestartType('');
       setRestarting(false);
+      soundsRef.current.playSuccess();
     };
 
     const onFinished = (data: { game: GameData }) => {
       setGame(data.game);
       setFinishing(false);
       setShowFinish(false);
+      soundsRef.current.playGameEnd();
     };
 
     const onError = (msg: string) => {
@@ -275,6 +295,7 @@ export default function AdminPage() {
     if (!socket || starting) return;
     setActionError('');
     setStarting(true);
+    sounds.playClick();
     socket.emit('game:start', { gameId, token: getToken() });
   };
 
@@ -282,6 +303,7 @@ export default function AdminPage() {
     if (!socket || drawing) return;
     setActionError('');
     setDrawing(true);
+    sounds.playClick();
     socket.emit('game:draw', { gameId, token: getToken() });
   };
 
@@ -289,6 +311,7 @@ export default function AdminPage() {
     if (!socket || !restartType || restarting) return;
     setActionError('');
     setRestarting(true);
+    sounds.playClick();
     socket.emit('game:restart', {
       gameId,
       token: getToken(),
@@ -300,6 +323,7 @@ export default function AdminPage() {
     if (!socket || finishing) return;
     setActionError('');
     setFinishing(true);
+    sounds.playClick();
     socket.emit('game:finish', { gameId, token: getToken() });
   };
 
@@ -432,28 +456,45 @@ export default function AdminPage() {
                     </IconButton>
                   </Tooltip>
                 </Stack>
-                <Tooltip title={isConnected ? 'Conectado' : isReconnecting ? 'Reconectando...' : 'Desconectado'}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      bgcolor: 'white',
-                      color: isConnected ? 'success.main' : isReconnecting ? 'warning.main' : 'error.main',
-                    }}
-                  >
-                    {isConnected ? (
-                      <WifiIcon fontSize="small" />
-                    ) : isReconnecting ? (
-                      <RefreshIcon fontSize="small" sx={{ animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />
-                    ) : (
-                      <WifiOffIcon fontSize="small" />
-                    )}
-                  </Box>
-                </Tooltip>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Tooltip title={soundEnabled ? 'Silenciar sonidos' : 'Activar sonidos'}>
+                    <IconButton
+                      onClick={toggleSound}
+                      size="small"
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        bgcolor: 'white',
+                        color: soundEnabled ? 'primary.main' : 'text.disabled',
+                        '&:hover': { bgcolor: 'grey.100' },
+                      }}
+                    >
+                      {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={isConnected ? 'Conectado' : isReconnecting ? 'Reconectando...' : 'Desconectado'}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        bgcolor: 'white',
+                        color: isConnected ? 'success.main' : isReconnecting ? 'warning.main' : 'error.main',
+                      }}
+                    >
+                      {isConnected ? (
+                        <WifiIcon fontSize="small" />
+                      ) : isReconnecting ? (
+                        <RefreshIcon fontSize="small" sx={{ animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />
+                      ) : (
+                        <WifiOffIcon fontSize="small" />
+                      )}
+                    </Box>
+                  </Tooltip>
+                </Stack>
               </Stack>
               <Stack
                 direction="row"
