@@ -24,7 +24,11 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
+  Grow,
+  Fade,
+  Zoom,
 } from "@mui/material";
+import { keyframes } from "@mui/material/styles";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import LoginIcon from "@mui/icons-material/Login";
 import CasinoIcon from "@mui/icons-material/Casino";
@@ -36,6 +40,24 @@ import CategoryIcon from "@mui/icons-material/Category";
 import GroupIcon from "@mui/icons-material/Group";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useSocket } from "./hooks/useSocket";
+
+// Animaciones
+const bounce = keyframes`
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-8px) rotate(-5deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-4px) rotate(5deg); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { transform: scale(0.95); }
+  50% { transform: scale(1); }
+`;
+
+const shimmer = keyframes`
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+`;
 
 const GAME_TYPES = [
   { value: "linea_horizontal", label: "Línea horizontal" },
@@ -205,19 +227,44 @@ export default function Home() {
         }}
       >
         {/* Header */}
-        <Stack spacing={1} alignItems="center" sx={{ mb: 5 }}>
-          <CasinoIcon sx={{ fontSize: 56, color: "primary.main" }} />
-          <Typography variant="h3" component="h1" align="center" color="primary.main">
-            BingUp
-          </Typography>
-          <Typography variant="body1" align="center" color="text.secondary">
-            Crea o únete a una partida de Bingo en tiempo real
-          </Typography>
-        </Stack>
+        <Fade in timeout={800}>
+          <Stack spacing={1} alignItems="center" sx={{ mb: 5 }}>
+            <CasinoIcon
+              sx={{
+                fontSize: 56,
+                color: "primary.main",
+                animation: `${bounce} 2s ease-in-out infinite`,
+              }}
+            />
+            <Typography
+              variant="h3"
+              component="h1"
+              align="center"
+              color="primary.main"
+              sx={{ fontWeight: "bold" }}
+            >
+              BingUp
+            </Typography>
+            <Typography variant="body1" align="center" color="text.secondary">
+              Crea o únete a una partida de Bingo en tiempo real
+            </Typography>
+          </Stack>
+        </Fade>
 
         <Stack spacing={3}>
           {/* Card: Crear partida */}
-          <Card variant="outlined" sx={{ borderColor: "primary.dark" }}>
+          <Grow in timeout={600} style={{ transformOrigin: "center top" }}>
+            <Card
+              variant="outlined"
+              sx={{
+                borderColor: "primary.dark",
+                transition: "transform 0.2s, box-shadow 0.2s",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: 6,
+                },
+              }}
+            >
             <CardContent>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                 <SportsEsportsIcon color="primary" />
@@ -239,8 +286,8 @@ export default function Home() {
                         </InputAdornment>
                       ),
                     },
+                    htmlInput: { maxLength: 100 },
                   }}
-                  inputProps={{ maxLength: 100 }}
                 />
 
                 <TextField
@@ -282,21 +329,39 @@ export default function Home() {
                 startIcon={creating ? <CircularProgress size={20} color="inherit" /> : <AddCircleOutlineIcon />}
                 onClick={handleCreate}
                 disabled={creating}
+                sx={{
+                  // animation: !creating ? `${pulse} 3s ease-in-out infinite` : "none",
+                  // "&:hover": { animation: "none" },
+                }}
               >
                 {creating ? "Creando..." : "Crear partida"}
               </Button>
             </CardActions>
           </Card>
+          </Grow>
 
           {/* Separador */}
-          <Divider>
+          <Zoom in timeout={800} style={{ transitionDelay: "300ms" }}>
+            <Divider>
             <Typography variant="body2" color="text.secondary">
               o
             </Typography>
           </Divider>
+          </Zoom>
 
           {/* Card: Unirse a partida */}
-          <Card variant="outlined" sx={{ borderColor: "secondary.dark" }}>
+          <Grow in timeout={600} style={{ transformOrigin: "center top", transitionDelay: "200ms" }}>
+            <Card
+              variant="outlined"
+              sx={{
+                borderColor: "secondary.dark",
+                transition: "transform 0.2s, box-shadow 0.2s",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: 6,
+                },
+              }}
+            >
             <CardContent>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                 <LoginIcon color="secondary" />
@@ -343,7 +408,11 @@ export default function Home() {
                           <ListItemButton
                             selected={gameCode === g._id}
                             onClick={() => selectGame(g._id)}
-                            sx={{ borderRadius: 1 }}
+                            sx={{
+                              borderRadius: 1,
+                              transition: "transform 0.15s, background-color 0.2s",
+                              "&:hover": { transform: "scale(0.99)" },
+                            }}
                           >
                             <ListItemIcon sx={{ minWidth: 36 }}>
                               <CasinoIcon fontSize="small" color="primary" />
@@ -392,8 +461,8 @@ export default function Home() {
                         </InputAdornment>
                       ),
                     },
+                    htmlInput: { maxLength: 50 },
                   }}
-                  inputProps={{ maxLength: 50 }}
                 />
 
                 <Collapse in={!!joinError}>
@@ -413,17 +482,24 @@ export default function Home() {
                 startIcon={joining ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
                 onClick={handleJoin}
                 disabled={joining}
+                sx={{
+                  // animation: !joining ? `${pulse} 3s ease-in-out 1.5s infinite` : "none",
+                  // "&:hover": { animation: "none" },
+                }}
               >
                 {joining ? "Uniéndose..." : "Unirse"}
               </Button>
             </CardActions>
           </Card>
+          </Grow>
         </Stack>
 
         {/* Footer */}
-        <Typography variant="caption" align="center" color="text.disabled" sx={{ mt: 4 }}>
-          BingUp v0.1.0 — Juego de Bingo en tiempo real
-        </Typography>
+        <Fade in timeout={1000} style={{ transitionDelay: "500ms" }}>
+          <Typography variant="caption" align="center" color="text.disabled" sx={{ mt: 4 }}>
+            BingUp v0.1.0 — Juego de Bingo en tiempo real
+          </Typography>
+        </Fade>
       </Box>
     </Container>
   );

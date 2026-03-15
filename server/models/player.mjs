@@ -31,6 +31,11 @@ const playerSchema = new mongoose.Schema(
       type: [Number],
       default: [],
     },
+    // Estado de conexión del jugador
+    online: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

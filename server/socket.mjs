@@ -141,6 +141,7 @@ export function setupSocket(httpServer) {
           token,
           socketId: socket.id,
           card,
+          online: true,
         });
 
         socket.join(`game:${gameId}`);
@@ -420,6 +421,9 @@ export function setupSocket(httpServer) {
           isAdmin: true,
         });
 
+        // Notificar a la sala que la lista de jugadores se actualizó
+        io.to(`game:${gameId}`).emit("game:players", players);
+
         console.log(`🔄 Admin reconectado a "${game.name}"`);
       } catch (err) {
         console.error("Error al reconectar admin:", err);
@@ -442,8 +446,9 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "Token de jugador inválido");
         }
 
-        // Actualizar socketId del jugador
+        // Actualizar socketId y estado online del jugador
         player.socketId = socket.id;
+        player.online = true;
         await player.save();
 
         socket.join(`game:${gameId}`);
@@ -454,6 +459,10 @@ export function setupSocket(httpServer) {
           player: player.toObject(),
         });
 
+        // Notificar a la sala que la lista de jugadores se actualizó (estado de conexión)
+        const players = await Player.find({ game: gameId }).lean();
+        io.to(`game:${gameId}`).emit("game:players", players);
+
         console.log(`🔄 Jugador "${player.name}" reconectado a "${game.name}"`);
       } catch (err) {
         console.error("Error al reconectar jugador:", err);
@@ -461,8 +470,24 @@ export function setupSocket(httpServer) {
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log(`❌ Cliente desconectado: ${socket.id}`);
+
+      // Marcar jugador como offline y notificar la sala
+      try {
+        const player = await Player.findOneAndUpdate(
+          { socketId: socket.id },
+          { online: false },
+          { new: true }
+        );
+        if (player) {
+          const players = await Player.find({ game: player.game }).lean();
+          io.to(`game:${player.game}`).emit("game:players", players);
+          console.log(`📴 ${player.name} se desconectó`);
+        }
+      } catch (err) {
+        console.error("Error al notificar desconexión:", err);
+      }
     });
   });
 
