@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Container,
@@ -20,6 +20,7 @@ import {
   Grow,
   Zoom,
   Paper,
+  Snackbar,
 } from "@mui/material";
 import { keyframes } from "@mui/material/styles";
 import CasinoIcon from "@mui/icons-material/Casino";
@@ -37,6 +38,8 @@ import StopCircleIcon from "@mui/icons-material/StopCircle";
 import WifiIcon from "@mui/icons-material/Wifi";
 import WifiOffIcon from "@mui/icons-material/WifiOff";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import PersonOffIcon from "@mui/icons-material/PersonOff";
 import { useSocket } from "@/app/hooks/useSocket";
 
 // Animaciones
@@ -106,6 +109,13 @@ interface PlayerData {
   markedNumbers: number[];
 }
 
+// Notificación de jugador (unión/desconexión)
+interface PlayerNotification {
+  id: string;
+  message: string;
+  type: "join" | "leave" | "reconnect";
+}
+
 export default function PlayPage() {
   const params = useParams();
   const router = useRouter();
@@ -121,7 +131,23 @@ export default function PlayPage() {
   const [callingBingo, setCallingBingo] = useState(false);
   const [winnerInfo, setWinnerInfo] = useState<{ playerName: string; round: number } | null>(null);
 
+  // Notificaciones de jugadores
+  const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
+  const playersRef = useRef<{ _id: string; name: string; online: boolean }[]>([]);
+  const isInitialLoadRef = useRef(true); // Ignorar primera carga de jugadores
+  const playerIdRef = useRef<string | null>(null); // Para saber qué notificaciones ignorar
+
   const getToken = useCallback(() => localStorage.getItem(`player:${gameId}`) || "", [gameId]);
+
+  // Notificar al servidor cuando el jugador sale de la página
+  useEffect(() => {
+    const token = getToken();
+    return () => {
+      if (socket && gameId && token) {
+        socket.emit("game:leave", { gameId, token });
+      }
+    };
+  }, [socket, gameId, getToken]);
 
   // Re-emitir reconexión cuando el socket se reconecta
   useEffect(() => {
@@ -166,10 +192,63 @@ export default function PlayPage() {
     // Reconectar como jugador
     socket.emit("game:reconnect-player", { gameId, token });
 
+    // Manejar cambios en la lista de jugadores (notificaciones)
+    const onPlayers = (players: { _id: string; name: string; online: boolean }[]) => {
+      const prevPlayers = playersRef.current;
+
+      // Ignorar la primera carga (estado inicial)
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+        playersRef.current = players;
+        return;
+      }
+
+      const newNotifications: PlayerNotification[] = [];
+
+      // Detectar nuevos jugadores o cambios de estado
+      for (const p of players) {
+        // Ignorar notificaciones sobre uno mismo
+        if (p._id === playerIdRef.current) continue;
+
+        const prev = prevPlayers.find((pp) => pp._id === p._id);
+        if (!prev) {
+          // Jugador nuevo
+          newNotifications.push({
+            id: `${p._id}-join-${Date.now()}`,
+            message: `${p.name} se unió a la partida`,
+            type: "join",
+          });
+        } else if (!prev.online && p.online) {
+          // Jugador reconectado
+          newNotifications.push({
+            id: `${p._id}-reconnect-${Date.now()}`,
+            message: `${p.name} se reconectó`,
+            type: "reconnect",
+          });
+        } else if (prev.online && !p.online) {
+          // Jugador desconectado
+          newNotifications.push({
+            id: `${p._id}-leave-${Date.now()}`,
+            message: `${p.name} se desconectó`,
+            type: "leave",
+          });
+        }
+      }
+
+      // Actualizar referencia
+      playersRef.current = players;
+
+      // Agregar notificaciones (máximo 3 visibles a la vez)
+      if (newNotifications.length > 0) {
+        setNotifications((prev) => [...prev, ...newNotifications].slice(-3));
+      }
+    };
+
     const onReconnected = (data: { role: string; game: GameData; player: PlayerData }) => {
       if (data.role === "player") {
         setGame(data.game);
         setPlayer(data.player);
+        playerIdRef.current = data.player._id; // Guardar ID para filtrar notificaciones
         setLoading(false);
         if (data.game.calledNumbers.length > 0) {
           setLastNumber(data.game.calledNumbers[data.game.calledNumbers.length - 1]);
@@ -242,6 +321,7 @@ export default function PlayPage() {
     socket.on("game:bingo-attempt", onBingoAttempt);
     socket.on("game:restarted", onRestarted);
     socket.on("game:finished", onFinished);
+    socket.on("game:players", onPlayers);
     socket.on("error", onError);
 
     return () => {
@@ -253,6 +333,7 @@ export default function PlayPage() {
       socket.off("game:bingo-attempt", onBingoAttempt);
       socket.off("game:restarted", onRestarted);
       socket.off("game:finished", onFinished);
+      socket.off("game:players", onPlayers);
       socket.off("error", onError);
     };
   }, [socket, gameId, getToken, loading, player?._id, player?.name]);
@@ -273,6 +354,11 @@ export default function PlayPage() {
     if (!socket || callingBingo) return;
     setCallingBingo(true);
     socket.emit("game:bingo", { gameId, token: getToken() });
+  };
+
+  // Cerrar notificación de jugador
+  const handleCloseNotification = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   if (loading) {
@@ -773,6 +859,35 @@ export default function PlayPage() {
           </Typography>
         </Fade>
       </Box>
+
+      {/* Notificaciones de jugadores (Snackbars apilados) */}
+      {notifications.map((notif, index) => (
+        <Snackbar
+          key={notif.id}
+          open
+          autoHideDuration={3000}
+          onClose={() => handleCloseNotification(notif.id)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+          sx={{ bottom: { xs: 24 + index * 56, sm: 24 + index * 64 } }}
+        >
+          <Alert
+            onClose={() => handleCloseNotification(notif.id)}
+            severity={notif.type === "leave" ? "warning" : "success"}
+            icon={
+              notif.type === "join" ? (
+                <PersonAddIcon fontSize="small" />
+              ) : notif.type === "leave" ? (
+                <PersonOffIcon fontSize="small" />
+              ) : (
+                <PersonIcon fontSize="small" />
+              )
+            }
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {notif.message}
+          </Alert>
+        </Snackbar>
+      ))}
     </Container>
   );
 }

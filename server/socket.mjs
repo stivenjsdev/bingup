@@ -472,6 +472,28 @@ export function setupSocket(httpServer) {
     // Reconexión (admin o jugador)
     // =============================================
 
+    // Jugador sale de la página (va al home u otra página)
+    socket.on("game:leave", async ({ gameId, token }) => {
+      try {
+        if (!isValidObjectId(gameId)) return;
+
+        const player = await Player.findOneAndUpdate(
+          { game: gameId, token },
+          { online: false },
+          { new: true }
+        );
+
+        if (player) {
+          socket.leave(`game:${gameId}`);
+          const players = await Player.find({ game: gameId }).lean();
+          io.to(`game:${gameId}`).emit("game:players", players);
+          console.log(`📴 ${player.name} salió de la partida "${gameId}"`);
+        }
+      } catch (err) {
+        console.error("Error al salir de la partida:", err);
+      }
+    });
+
     // Reconectar como admin
     socket.on("game:reconnect-admin", async ({ gameId, token }) => {
       try {
