@@ -136,6 +136,8 @@ export default function AdminPage() {
     playerName: string;
     valid: boolean;
   } | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   const getToken = useCallback(
     () => localStorage.getItem(`admin:${gameId}`) || '',
@@ -175,7 +177,10 @@ export default function AdminPage() {
 
     const onPlayers = (data: PlayerData[]) => setPlayers(data);
 
-    const onStarted = (gameData: GameData) => setGame(gameData);
+    const onStarted = (gameData: GameData) => {
+      setGame(gameData);
+      setStarting(false);
+    };
 
     const onNumber = (data: { number: number; calledNumbers: number[] }) => {
       setLastNumber(data.number);
@@ -206,11 +211,14 @@ export default function AdminPage() {
       setLastNumber(null);
       setShowRestart(false);
       setRestartType('');
+      setRestarting(false);
     };
 
     const onError = (msg: string) => {
       setActionError(msg);
       setDrawing(false);
+      setStarting(false);
+      setRestarting(false);
       if (loading) {
         setError(msg);
         setLoading(false);
@@ -239,8 +247,9 @@ export default function AdminPage() {
   }, [socket, gameId, getToken, loading]);
 
   const handleStart = () => {
-    if (!socket) return;
+    if (!socket || starting) return;
     setActionError('');
+    setStarting(true);
     socket.emit('game:start', { gameId, token: getToken() });
   };
 
@@ -252,8 +261,9 @@ export default function AdminPage() {
   };
 
   const handleRestart = () => {
-    if (!socket || !restartType) return;
+    if (!socket || !restartType || restarting) return;
     setActionError('');
+    setRestarting(true);
     socket.emit('game:restart', {
       gameId,
       token: getToken(),
@@ -567,9 +577,18 @@ export default function AdminPage() {
                         variant="contained"
                         size="large"
                         fullWidth
-                        startIcon={<PlayArrowIcon />}
+                        startIcon={
+                          starting ? (
+                            <CircularProgress
+                              size={20}
+                              color="inherit"
+                            />
+                          ) : (
+                            <PlayArrowIcon />
+                          )
+                        }
                         onClick={handleStart}
-                        disabled={players.length === 0}
+                        disabled={players.length === 0 || starting}
                         sx={{
                           py: 1.5,
                           fontSize: '1.1rem',
@@ -725,12 +744,21 @@ export default function AdminPage() {
                           <Button
                             variant="contained"
                             color="success"
-                            startIcon={<RestartAltIcon />}
+                            startIcon={
+                              restarting ? (
+                                <CircularProgress
+                                  size={20}
+                                  color="inherit"
+                                />
+                              ) : (
+                                <RestartAltIcon />
+                              )
+                            }
                             onClick={handleRestart}
-                            disabled={!restartType}
+                            disabled={!restartType || restarting}
                             fullWidth
                           >
-                            Iniciar ronda {game.round + 1}
+                            {restarting ? 'Iniciando...' : `Iniciar ronda ${game.round + 1}`}
                           </Button>
                         </Stack>
                       </Collapse>
