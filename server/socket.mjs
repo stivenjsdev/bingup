@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import mongoose from "mongoose";
 import { Game, GAME_TYPES } from "./models/game.mjs";
 import { Player } from "./models/player.mjs";
 import { generateCard, checkWin } from "./utils/bingo.mjs";
@@ -8,9 +9,17 @@ import { generateToken } from "./utils/token.mjs";
 const ALL_BINGO_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
 
 /**
+ * Valida si un string es un ObjectId de MongoDB válido.
+ */
+function isValidObjectId(id) {
+  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && /^[a-fA-F0-9]{24}$/.test(id);
+}
+
+/**
  * Verifica si un token corresponde al administrador de la partida.
  */
 async function isAdmin(gameId, token) {
+  if (!isValidObjectId(gameId)) return false;
   const game = await Game.findById(gameId).lean();
   return game && game.adminToken === token;
 }
@@ -40,6 +49,28 @@ export function setupSocket(httpServer) {
       } catch (err) {
         console.error("Error al listar partidas:", err);
         socket.emit("error", "No se pudieron listar las partidas");
+      }
+    });
+
+    // Listar solo partidas en espera (optimizado para la pantalla de unirse)
+    socket.on("game:list-waiting", async () => {
+      try {
+        const games = await Game.find({ status: "waiting" })
+          .select("name type status")
+          .sort({ createdAt: -1 })
+          .lean();
+
+        const gamesWithCount = await Promise.all(
+          games.map(async (g) => ({
+            ...g,
+            playerCount: await Player.countDocuments({ game: g._id }),
+          }))
+        );
+
+        socket.emit("game:list-waiting", gamesWithCount);
+      } catch (err) {
+        console.error("Error al listar partidas en espera:", err);
+        socket.emit("error", "No se pudieron listar las partidas en espera");
       }
     });
 
@@ -89,6 +120,9 @@ export function setupSocket(httpServer) {
         if (!gameId || !playerName) {
           return socket.emit("error", "ID de partida y nombre son obligatorios");
         }
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
 
         const game = await Game.findById(gameId);
         if (!game) {
@@ -132,6 +166,10 @@ export function setupSocket(httpServer) {
     // Obtener detalles de la partida
     socket.on("game:details", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+
         const game = await Game.findById(gameId).lean();
         if (!game) {
           return socket.emit("error", "Partida no encontrada");
@@ -156,6 +194,9 @@ export function setupSocket(httpServer) {
     // Iniciar la partida (solo admin)
     socket.on("game:start", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
         if (!(await isAdmin(gameId, token))) {
           return socket.emit("error", "Solo el administrador puede iniciar la partida");
         }
@@ -185,6 +226,9 @@ export function setupSocket(httpServer) {
     // Sacar una balota (solo admin)
     socket.on("game:draw", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
         if (!(await isAdmin(gameId, token))) {
           return socket.emit("error", "Solo el administrador puede sacar balotas");
         }
@@ -224,6 +268,10 @@ export function setupSocket(httpServer) {
     // Jugador canta BINGO
     socket.on("game:bingo", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+
         const game = await Game.findById(gameId);
         if (!game) return socket.emit("error", "Partida no encontrada");
         if (game.status !== "playing") {
@@ -271,6 +319,8 @@ export function setupSocket(httpServer) {
     // Jugador marca un número en su cartón
     socket.on("game:mark", async ({ gameId, number, token }) => {
       try {
+        if (!isValidObjectId(gameId)) return;
+
         const game = await Game.findById(gameId).lean();
         if (!game || game.status !== "playing") return;
 
@@ -291,6 +341,9 @@ export function setupSocket(httpServer) {
     // Reiniciar partida para nueva ronda (solo admin)
     socket.on("game:restart", async ({ gameId, token, type }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
         if (!(await isAdmin(gameId, token))) {
           return socket.emit("error", "Solo el administrador puede reiniciar la partida");
         }
@@ -343,6 +396,10 @@ export function setupSocket(httpServer) {
     // Reconectar como admin
     socket.on("game:reconnect-admin", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+
         const game = await Game.findById(gameId);
         if (!game) return socket.emit("error", "Partida no encontrada");
         if (game.adminToken !== token) {
@@ -373,6 +430,10 @@ export function setupSocket(httpServer) {
     // Reconectar como jugador
     socket.on("game:reconnect-player", async ({ gameId, token }) => {
       try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+
         const game = await Game.findById(gameId);
         if (!game) return socket.emit("error", "Partida no encontrada");
 
