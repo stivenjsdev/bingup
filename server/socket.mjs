@@ -512,7 +512,7 @@ export function setupSocket(httpServer) {
         const player = await Player.findOneAndUpdate(
           { game: gameId, token },
           { online: false },
-          { new: true }
+          { returnDocument: "after" }
         );
 
         if (player) {
@@ -610,7 +610,7 @@ export function setupSocket(httpServer) {
         const player = await Player.findOneAndUpdate(
           { socketId: socket.id },
           { online: false },
-          { new: true }
+          { returnDocument: "after" }
         );
         if (player) {
           const players = await Player.find({ game: player.game }).lean();
