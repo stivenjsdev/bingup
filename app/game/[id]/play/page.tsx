@@ -40,6 +40,7 @@ import WifiOffIcon from "@mui/icons-material/WifiOff";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 import { useSocket } from "@/app/hooks/useSocket";
 
 // Animaciones
@@ -72,6 +73,12 @@ const hourglassFlip = keyframes`
   50% { transform: rotateZ(180deg); }
   75% { transform: rotateZ(360deg); }
   100% { transform: rotateZ(360deg); }
+`;
+
+const shuffleCard = keyframes`
+  0% { transform: perspective(600px) rotateY(0deg); opacity: 1; }
+  50% { transform: perspective(600px) rotateY(90deg); opacity: 0.5; }
+  100% { transform: perspective(600px) rotateY(0deg); opacity: 1; }
 `;
 
 const BINGO_LETTERS = ["B", "I", "N", "G", "O"];
@@ -130,6 +137,8 @@ export default function PlayPage() {
   const [bingoResult, setBingoResult] = useState<"valid" | "invalid" | null>(null);
   const [callingBingo, setCallingBingo] = useState(false);
   const [winnerInfo, setWinnerInfo] = useState<{ playerName: string; round: number } | null>(null);
+  const [changingCard, setChangingCard] = useState(false);
+  const [cardAnimating, setCardAnimating] = useState(false);
 
   // Notificaciones de jugadores
   const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
@@ -305,12 +314,25 @@ export default function PlayPage() {
       setCallingBingo(false);
     };
 
+    const onCardChanged = (data: { card: number[][] }) => {
+      // Activar animación
+      setCardAnimating(true);
+      // Actualizar cartón después de que inicie la animación
+      setTimeout(() => {
+        setPlayer((prev) => prev ? { ...prev, card: data.card, markedNumbers: [] } : prev);
+        setChangingCard(false);
+        // Desactivar animación al terminar
+        setTimeout(() => setCardAnimating(false), 300);
+      }, 250);
+    };
+
     const onError = (msg: string) => {
       if (loading) {
         setError(msg);
         setLoading(false);
       }
       setCallingBingo(false);
+      setChangingCard(false);
     };
 
     socket.on("game:reconnected", onReconnected);
@@ -321,6 +343,7 @@ export default function PlayPage() {
     socket.on("game:bingo-attempt", onBingoAttempt);
     socket.on("game:restarted", onRestarted);
     socket.on("game:finished", onFinished);
+    socket.on("game:card-changed", onCardChanged);
     socket.on("game:players", onPlayers);
     socket.on("error", onError);
 
@@ -333,6 +356,7 @@ export default function PlayPage() {
       socket.off("game:bingo-attempt", onBingoAttempt);
       socket.off("game:restarted", onRestarted);
       socket.off("game:finished", onFinished);
+      socket.off("game:card-changed", onCardChanged);
       socket.off("game:players", onPlayers);
       socket.off("error", onError);
     };
@@ -354,6 +378,12 @@ export default function PlayPage() {
     if (!socket || callingBingo) return;
     setCallingBingo(true);
     socket.emit("game:bingo", { gameId, token: getToken() });
+  };
+
+  const handleChangeCard = () => {
+    if (!socket || changingCard || game?.status !== "waiting") return;
+    setChangingCard(true);
+    socket.emit("game:change-card", { gameId, token: getToken() });
   };
 
   // Cerrar notificación de jugador
@@ -540,6 +570,16 @@ export default function PlayPage() {
                   <Typography variant="body2" color="text.secondary" align="center">
                     Mientras tanto, revisa tu cartón abajo
                   </Typography>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={changingCard ? <CircularProgress size={18} color="inherit" /> : <AutorenewIcon />}
+                    onClick={handleChangeCard}
+                    disabled={changingCard}
+                    sx={{ mt: 1 }}
+                  >
+                    {changingCard ? "Cambiando..." : "Cambiar cartón"}
+                  </Button>
                 </Stack>
               </CardContent>
             </Card>
@@ -754,6 +794,8 @@ export default function PlayPage() {
                   display: "grid",
                   gridTemplateColumns: "repeat(5, 1fr)",
                   gap: { xs: 0.5, sm: 1 },
+                  animation: cardAnimating ? `${shuffleCard} 0.5s ease-in-out` : "none",
+                  transformStyle: "preserve-3d",
                 }}
               >
                 {player.card.map((row, rowIdx) =>

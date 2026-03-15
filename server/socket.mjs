@@ -417,6 +417,38 @@ export function setupSocket(httpServer) {
       }
     });
 
+    // Jugador cambia su cartón (solo si la partida está en espera)
+    socket.on("game:change-card", async ({ gameId, token }) => {
+      try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+
+        const game = await Game.findById(gameId).lean();
+        if (!game) return socket.emit("error", "Partida no encontrada");
+        if (game.status !== "waiting") {
+          return socket.emit("error", "Solo puedes cambiar tu cartón antes de que inicie la partida");
+        }
+
+        const player = await Player.findOne({ game: gameId, token });
+        if (!player) {
+          return socket.emit("error", "No eres jugador de esta partida");
+        }
+
+        // Generar nuevo cartón
+        const newCard = generateCard();
+        player.card = newCard;
+        player.markedNumbers = [];
+        await player.save();
+
+        socket.emit("game:card-changed", { card: newCard });
+        console.log(`🔄 ${player.name} cambió su cartón en "${game.name}"`);
+      } catch (err) {
+        console.error("Error al cambiar cartón:", err);
+        socket.emit("error", "No se pudo cambiar el cartón");
+      }
+    });
+
     // Reiniciar partida para nueva ronda (solo admin)
     socket.on("game:restart", async ({ gameId, token, type }) => {
       try {
