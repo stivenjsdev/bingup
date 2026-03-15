@@ -282,111 +282,14 @@ export default function Home() {
               BingUp
             </Typography>
             <Typography variant="body1" align="center" color="text.secondary">
-              Crea o únete a una partida de Bingo en tiempo real
+              Únete o crea una partida de Bingo en tiempo real
             </Typography>
           </Stack>
         </Fade>
 
         <Stack spacing={3}>
-          {/* Card: Crear partida */}
-          <Grow in timeout={600} style={{ transformOrigin: "center top" }}>
-            <Card
-              variant="outlined"
-              sx={{
-                borderColor: "primary.dark",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: 6,
-                },
-              }}
-            >
-            <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                <SportsEsportsIcon color="primary" />
-                <Typography variant="h6">Crear nueva partida</Typography>
-              </Stack>
-
-              <Stack spacing={2}>
-                <TextField
-                  label="Nombre de la partida"
-                  placeholder="Ej: Bingo del viernes"
-                  fullWidth
-                  value={gameName}
-                  onChange={(e) => setGameName(e.target.value)}
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <DriveFileRenameOutlineIcon fontSize="small" color="action" />
-                        </InputAdornment>
-                      ),
-                    },
-                    htmlInput: { maxLength: 100 },
-                  }}
-                />
-
-                <TextField
-                  select
-                  label="Tipo de juego"
-                  fullWidth
-                  value={gameType}
-                  onChange={(e) => setGameType(e.target.value)}
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CategoryIcon fontSize="small" color="action" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                >
-                  {GAME_TYPES.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <Collapse in={!!createError}>
-                  <Alert severity="warning" onClose={() => setCreateError("")}>
-                    {createError}
-                  </Alert>
-                </Collapse>
-              </Stack>
-            </CardContent>
-
-            <CardActions sx={{ px: 2, pb: 2 }}>
-              <Button
-                variant="contained"
-                size="large"
-                fullWidth
-                startIcon={creating ? <CircularProgress size={20} color="inherit" /> : <AddCircleOutlineIcon />}
-                onClick={handleCreate}
-                disabled={creating}
-                sx={{
-                  // animation: !creating ? `${pulse} 3s ease-in-out infinite` : "none",
-                  // "&:hover": { animation: "none" },
-                }}
-              >
-                {creating ? "Creando..." : "Crear partida"}
-              </Button>
-            </CardActions>
-          </Card>
-          </Grow>
-
-          {/* Separador */}
-          <Zoom in timeout={800} style={{ transitionDelay: "300ms" }}>
-            <Divider>
-            <Typography variant="body2" color="text.secondary">
-              o
-            </Typography>
-          </Divider>
-          </Zoom>
-
           {/* Card: Unirse a partida */}
-          <Grow in timeout={600} style={{ transformOrigin: "center top", transitionDelay: "200ms" }}>
+          <Grow in timeout={600} style={{ transformOrigin: "center top" }}>
             <Card
               variant="outlined"
               sx={{
@@ -558,6 +461,103 @@ export default function Home() {
                 }}
               >
                 {joining ? "Uniéndose..." : "Unirse"}
+              </Button>
+            </CardActions>
+          </Card>
+          </Grow>
+
+          {/* Separador */}
+          <Zoom in timeout={800} style={{ transitionDelay: "300ms" }}>
+            <Divider>
+            <Typography variant="body2" color="text.secondary">
+              o
+            </Typography>
+          </Divider>
+          </Zoom>
+
+          {/* Card: Crear partida */}
+          <Grow in timeout={600} style={{ transformOrigin: "center top", transitionDelay: "200ms" }}>
+            <Card
+              variant="outlined"
+              sx={{
+                borderColor: "primary.dark",
+                transition: "transform 0.2s, box-shadow 0.2s",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: 6,
+                },
+              }}
+            >
+            <CardContent>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                <SportsEsportsIcon color="primary" />
+                <Typography variant="h6">Crear nueva partida</Typography>
+              </Stack>
+
+              <Stack spacing={2}>
+                <TextField
+                  label="Nombre de la partida"
+                  placeholder="Ej: Bingo del viernes"
+                  fullWidth
+                  value={gameName}
+                  onChange={(e) => setGameName(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <DriveFileRenameOutlineIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                    htmlInput: { maxLength: 100 },
+                  }}
+                />
+
+                <TextField
+                  select
+                  label="Tipo de juego"
+                  fullWidth
+                  value={gameType}
+                  onChange={(e) => setGameType(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CategoryIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                >
+                  {GAME_TYPES.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <Collapse in={!!createError}>
+                  <Alert severity="warning" onClose={() => setCreateError("")}>
+                    {createError}
+                  </Alert>
+                </Collapse>
+              </Stack>
+            </CardContent>
+
+            <CardActions sx={{ px: 2, pb: 2 }}>
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={creating ? <CircularProgress size={20} color="inherit" /> : <AddCircleOutlineIcon />}
+                onClick={handleCreate}
+                disabled={creating}
+                sx={{
+                  // animation: !creating ? `${pulse} 3s ease-in-out infinite` : "none",
+                  // "&:hover": { animation: "none" },
+                }}
+              >
+                {creating ? "Creando..." : "Crear partida"}
               </Button>
             </CardActions>
           </Card>
