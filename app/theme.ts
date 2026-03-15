@@ -20,18 +20,18 @@ const theme = createTheme({
 //       paper: "#141414",
 //     },
 //   },
-//   typography: {
-//     fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
-//     h3: {
-//       fontWeight: 700,
-//     },
-//     h5: {
-//       fontWeight: 600,
-//     },
-//     h6: {
-//       fontWeight: 600,
-//     },
-//   },
+  typography: {
+    fontFamily: "'Source Sans Pro', 'Roboto', 'Helvetica', 'Arial', sans-serif",
+    h3: {
+      fontWeight: 700,
+    },
+    h5: {
+      fontWeight: 600,
+    },
+    h6: {
+      fontWeight: 600,
+    },
+  },
 //   shape: {
 //     borderRadius: 12,
 //   },
