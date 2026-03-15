@@ -569,9 +569,9 @@ export default function AdminPage() {
                         variant="body2"
                         color="text.secondary"
                       >
-                        {players.length === 0
+                        {players.filter((p) => p.online).length === 0
                           ? 'Esperando jugadores para iniciar...'
-                          : `${players.length} jugador${players.length > 1 ? 'es' : ''} listo${players.length > 1 ? 's' : ''}`}
+                          : `${players.filter((p) => p.online).length} jugador${players.filter((p) => p.online).length > 1 ? 'es' : ''} listo${players.filter((p) => p.online).length > 1 ? 's' : ''}`}
                       </Typography>
                       <Button
                         variant="contained"
