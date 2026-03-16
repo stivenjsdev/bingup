@@ -155,6 +155,21 @@ export default function AdminPage() {
   const soundsRef = useRef(sounds);
   soundsRef.current = sounds;
 
+  // Refs para lock síncrono de acciones (prevenir doble-clic)
+  const drawingLockRef = useRef(false);
+  const startingLockRef = useRef(false);
+  const restartingLockRef = useRef(false);
+  const finishingLockRef = useRef(false);
+
+  // Refs para timeouts de seguridad (liberar locks si el servidor no responde)
+  const drawingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const startingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const restartingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const finishingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Timeout de seguridad para liberar locks (ms)
+  const ACTION_TIMEOUT = 3000;
+
   const getToken = useCallback(
     () => localStorage.getItem(`admin:${gameId}`) || '',
     [gameId],
@@ -206,12 +221,16 @@ export default function AdminPage() {
     const onStarted = (gameData: GameData) => {
       setGame(gameData);
       setStarting(false);
+      startingLockRef.current = false; // Liberar lock
+      if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current); // Cancelar timeout
       soundsRef.current.playGameStart();
     };
 
     const onNumber = (data: { number: number; calledNumbers: number[] }) => {
       setLastNumber(data.number);
       setDrawing(false);
+      drawingLockRef.current = false; // Liberar lock
+      if (drawingTimeoutRef.current) clearTimeout(drawingTimeoutRef.current); // Cancelar timeout
       setGame((prev) =>
         prev ? { ...prev, calledNumbers: data.calledNumbers } : prev,
       );
@@ -246,12 +265,19 @@ export default function AdminPage() {
       setShowRestart(false);
       setRestartType('');
       setRestarting(false);
+      restartingLockRef.current = false; // Liberar lock
+      drawingLockRef.current = false; // Liberar lock de draw para nueva partida
+      // Cancelar timeouts
+      if (restartingTimeoutRef.current) clearTimeout(restartingTimeoutRef.current);
+      if (drawingTimeoutRef.current) clearTimeout(drawingTimeoutRef.current);
       soundsRef.current.playSuccess();
     };
 
     const onFinished = (data: { game: GameData }) => {
       setGame(data.game);
       setFinishing(false);
+      finishingLockRef.current = false; // Liberar lock
+      if (finishingTimeoutRef.current) clearTimeout(finishingTimeoutRef.current); // Cancelar timeout
       setShowFinish(false);
       soundsRef.current.playGameEnd();
     };
@@ -262,6 +288,16 @@ export default function AdminPage() {
       setStarting(false);
       setRestarting(false);
       setFinishing(false);
+      // Liberar todos los locks en caso de error
+      drawingLockRef.current = false;
+      startingLockRef.current = false;
+      restartingLockRef.current = false;
+      finishingLockRef.current = false;
+      // Cancelar todos los timeouts pendientes
+      if (drawingTimeoutRef.current) clearTimeout(drawingTimeoutRef.current);
+      if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
+      if (restartingTimeoutRef.current) clearTimeout(restartingTimeoutRef.current);
+      if (finishingTimeoutRef.current) clearTimeout(finishingTimeoutRef.current);
       if (loading) {
         setError(msg);
         setLoading(false);
@@ -292,23 +328,41 @@ export default function AdminPage() {
   }, [socket, gameId, getToken, loading]);
 
   const handleStart = () => {
-    if (!socket || starting) return;
+    // Lock síncrono para prevenir doble-clic (el estado de React es asíncrono)
+    if (!socket || startingLockRef.current || starting) return;
+    startingLockRef.current = true;
     setActionError('');
     setStarting(true);
     sounds.playClick();
     socket.emit('game:start', { gameId, token: getToken() });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    startingTimeoutRef.current = setTimeout(() => {
+      startingLockRef.current = false;
+      setStarting(false);
+    }, ACTION_TIMEOUT);
   };
 
   const handleDraw = () => {
-    if (!socket || drawing) return;
+    // Lock síncrono para prevenir doble-clic (el estado de React es asíncrono)
+    if (!socket || drawingLockRef.current || drawing) return;
+    drawingLockRef.current = true;
     setActionError('');
     setDrawing(true);
     sounds.playClick();
     socket.emit('game:draw', { gameId, token: getToken() });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    drawingTimeoutRef.current = setTimeout(() => {
+      drawingLockRef.current = false;
+      setDrawing(false);
+    }, ACTION_TIMEOUT);
   };
 
   const handleRestart = () => {
-    if (!socket || !restartType || restarting) return;
+    // Lock síncrono para prevenir doble-clic
+    if (!socket || !restartType || restartingLockRef.current || restarting) return;
+    restartingLockRef.current = true;
     setActionError('');
     setRestarting(true);
     sounds.playClick();
@@ -317,14 +371,28 @@ export default function AdminPage() {
       token: getToken(),
       type: restartType,
     });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    restartingTimeoutRef.current = setTimeout(() => {
+      restartingLockRef.current = false;
+      setRestarting(false);
+    }, ACTION_TIMEOUT);
   };
 
   const handleFinish = () => {
-    if (!socket || finishing) return;
+    // Lock síncrono para prevenir doble-clic
+    if (!socket || finishingLockRef.current || finishing) return;
+    finishingLockRef.current = true;
     setActionError('');
     setFinishing(true);
     sounds.playClick();
     socket.emit('game:finish', { gameId, token: getToken() });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    finishingTimeoutRef.current = setTimeout(() => {
+      finishingLockRef.current = false;
+      setFinishing(false);
+    }, ACTION_TIMEOUT);
   };
 
   const handleCopyCode = () => {

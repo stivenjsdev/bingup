@@ -157,6 +157,17 @@ export default function PlayPage() {
   const playerIdRef = useRef<string | null>(null); // Para saber qué notificaciones ignorar
   const playerNameRef = useRef<string | null>(null); // Para comparar en onWinner
 
+  // Refs para lock síncrono de acciones (prevenir doble-clic)
+  const bingoLockRef = useRef(false);
+  const changingCardLockRef = useRef(false);
+
+  // Refs para timeouts de seguridad (liberar locks si el servidor no responde)
+  const bingoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const changingCardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Timeout de seguridad para liberar locks (ms)
+  const ACTION_TIMEOUT = 3000;
+
   const getToken = useCallback(() => localStorage.getItem(`player:${gameId}`) || "", [gameId]);
 
   // Notificar al servidor cuando el jugador sale de la página
@@ -289,6 +300,8 @@ export default function PlayPage() {
       setWinnerInfo(null);
       setBingoResult(null);
       setCallingBingo(false);
+      bingoLockRef.current = false; // Liberar lock al iniciar nueva partida
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       soundsRef.current.playGameStart();
     };
 
@@ -302,6 +315,8 @@ export default function PlayPage() {
       setGame((prev) => (prev ? { ...prev, status: "finished" } : prev));
       setWinnerInfo(data);
       setCallingBingo(false);
+      bingoLockRef.current = false; // Liberar lock
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       // Reproducir sonido según si el jugador actual ganó o no
       if (data.playerName === playerNameRef.current) {
         soundsRef.current.playBingoWin();
@@ -313,6 +328,8 @@ export default function PlayPage() {
     const onBingoInvalid = () => {
       setBingoResult("invalid");
       setCallingBingo(false);
+      bingoLockRef.current = false; // Liberar lock
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       soundsRef.current.playBingoFalse();
       setTimeout(() => setBingoResult(null), 4000);
     };
@@ -321,6 +338,8 @@ export default function PlayPage() {
       if (data.valid && data.playerName === player?.name) {
         setBingoResult("valid");
         setCallingBingo(false);
+        bingoLockRef.current = false; // Liberar lock
+        if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       }
     };
 
@@ -330,6 +349,8 @@ export default function PlayPage() {
       setWinnerInfo(null);
       setBingoResult(null);
       setCallingBingo(false);
+      bingoLockRef.current = false; // Liberar lock al reiniciar
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       // Buscar los datos actualizados de este jugador
       const me = data.players.find((p) => p._id === player?._id);
       if (me) {
@@ -340,10 +361,14 @@ export default function PlayPage() {
     const onFinished = (data: { game: GameData }) => {
       setGame(data.game);
       setCallingBingo(false);
+      bingoLockRef.current = false; // Liberar lock
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
       soundsRef.current.playGameEnd();
     };
 
     const onCardChanged = (data: { card: number[][] }) => {
+      // Cancelar timeout de seguridad
+      if (changingCardTimeoutRef.current) clearTimeout(changingCardTimeoutRef.current);
       // Activar animación
       setCardAnimating(true);
       soundsRef.current.playCardShuffle();
@@ -351,6 +376,7 @@ export default function PlayPage() {
       setTimeout(() => {
         setPlayer((prev) => prev ? { ...prev, card: data.card, markedNumbers: [] } : prev);
         setChangingCard(false);
+        changingCardLockRef.current = false; // Liberar lock
         // Desactivar animación al terminar
         setTimeout(() => setCardAnimating(false), 300);
       }, 250);
@@ -363,6 +389,12 @@ export default function PlayPage() {
       }
       setCallingBingo(false);
       setChangingCard(false);
+      // Liberar locks en caso de error
+      bingoLockRef.current = false;
+      changingCardLockRef.current = false;
+      // Cancelar timeouts pendientes
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current);
+      if (changingCardTimeoutRef.current) clearTimeout(changingCardTimeoutRef.current);
     };
 
     socket.on("game:reconnected", onReconnected);
@@ -406,16 +438,32 @@ export default function PlayPage() {
   };
 
   const handleBingo = () => {
-    if (!socket || callingBingo) return;
+    // Lock síncrono para prevenir doble-clic (el estado de React es asíncrono)
+    if (!socket || bingoLockRef.current || callingBingo) return;
+    bingoLockRef.current = true;
     setCallingBingo(true);
     sounds.playClick();
     socket.emit("game:bingo", { gameId, token: getToken() });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    bingoTimeoutRef.current = setTimeout(() => {
+      bingoLockRef.current = false;
+      setCallingBingo(false);
+    }, ACTION_TIMEOUT);
   };
 
   const handleChangeCard = () => {
-    if (!socket || changingCard || game?.status !== "waiting") return;
+    // Lock síncrono para prevenir doble-clic
+    if (!socket || changingCardLockRef.current || changingCard || game?.status !== "waiting") return;
+    changingCardLockRef.current = true;
     setChangingCard(true);
     socket.emit("game:change-card", { gameId, token: getToken() });
+
+    // Timeout de seguridad: liberar lock si el servidor no responde
+    changingCardTimeoutRef.current = setTimeout(() => {
+      changingCardLockRef.current = false;
+      setChangingCard(false);
+    }, ACTION_TIMEOUT);
   };
 
   // Cerrar notificación de jugador

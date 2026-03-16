@@ -8,6 +8,51 @@ import { generateToken } from "./utils/token.mjs";
 // Números posibles del bingo (1-75)
 const ALL_BINGO_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
 
+// Throttle para prevenir spam de eventos (doble-clic, etc.)
+// Map: socketId -> Map<eventName, lastTimestamp>
+const socketThrottles = new Map();
+
+// Cooldown por evento en milisegundos
+const THROTTLE_COOLDOWNS = {
+  "game:draw": 500,
+  "game:bingo": 1000,
+  "game:start": 1000,
+  "game:restart": 1000,
+  "game:finish": 1000,
+  "game:change-card": 500,
+};
+
+/**
+ * Verifica si una acción está en cooldown para un socket.
+ * Retorna true si la acción está bloqueada (en cooldown), false si puede proceder.
+ */
+function isThrottled(socketId, eventName) {
+  const cooldown = THROTTLE_COOLDOWNS[eventName];
+  if (!cooldown) return false; // Sin throttle para este evento
+
+  if (!socketThrottles.has(socketId)) {
+    socketThrottles.set(socketId, new Map());
+  }
+
+  const socketEvents = socketThrottles.get(socketId);
+  const lastTime = socketEvents.get(eventName) || 0;
+  const now = Date.now();
+
+  if (now - lastTime < cooldown) {
+    return true; // Bloqueado
+  }
+
+  socketEvents.set(eventName, now);
+  return false; // Puede proceder
+}
+
+/**
+ * Limpia los throttles de un socket al desconectarse.
+ */
+function clearSocketThrottles(socketId) {
+  socketThrottles.delete(socketId);
+}
+
 /**
  * Valida si un string es un ObjectId de MongoDB válido.
  */
@@ -243,6 +288,11 @@ export function setupSocket(httpServer) {
     // Iniciar la partida (solo admin)
     socket.on("game:start", async ({ gameId, token }) => {
       try {
+        // Throttle para prevenir doble-clic
+        if (isThrottled(socket.id, "game:start")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -275,6 +325,11 @@ export function setupSocket(httpServer) {
     // Sacar una balota (solo admin)
     socket.on("game:draw", async ({ gameId, token }) => {
       try {
+        // Throttle para prevenir doble-clic
+        if (isThrottled(socket.id, "game:draw")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -317,6 +372,11 @@ export function setupSocket(httpServer) {
     // Finalizar partida manualmente (solo admin)
     socket.on("game:finish", async ({ gameId, token }) => {
       try {
+        // Throttle para prevenir doble-clic
+        if (isThrottled(socket.id, "game:finish")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -347,6 +407,11 @@ export function setupSocket(httpServer) {
     // Jugador canta BINGO
     socket.on("game:bingo", async ({ gameId, token }) => {
       try {
+        // Throttle para prevenir doble-clic (1 segundo de cooldown)
+        if (isThrottled(socket.id, "game:bingo")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -420,6 +485,11 @@ export function setupSocket(httpServer) {
     // Jugador cambia su cartón (solo si la partida está en espera)
     socket.on("game:change-card", async ({ gameId, token }) => {
       try {
+        // Throttle para prevenir doble-clic
+        if (isThrottled(socket.id, "game:change-card")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -452,6 +522,11 @@ export function setupSocket(httpServer) {
     // Reiniciar partida para nueva ronda (solo admin)
     socket.on("game:restart", async ({ gameId, token, type }) => {
       try {
+        // Throttle para prevenir doble-clic
+        if (isThrottled(socket.id, "game:restart")) {
+          return; // Ignorar solicitud duplicada silenciosamente
+        }
+
         if (!isValidObjectId(gameId)) {
           return socket.emit("error", "Código de partida no válido");
         }
@@ -604,6 +679,9 @@ export function setupSocket(httpServer) {
 
     socket.on("disconnect", async () => {
       console.log(`❌ Cliente desconectado: ${socket.id}`);
+
+      // Limpiar throttles del socket
+      clearSocketThrottles(socket.id);
 
       // Marcar jugador como offline y notificar la sala
       try {
