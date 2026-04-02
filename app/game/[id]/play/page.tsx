@@ -99,6 +99,96 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   carton_lleno: "Cartón lleno",
 };
 
+// Patrón de celdas ganadoras por tipo de juego (true = necesita estar marcada)
+const WIN_PATTERNS: Record<string, boolean[][]> = {
+  linea_horizontal: [
+    [true, true, true, true, true],
+    [false, false, false, false, false],
+    [false, false, false, false, false],
+    [false, false, false, false, false],
+    [false, false, false, false, false],
+  ],
+  linea_vertical: [
+    [true, false, false, false, false],
+    [true, false, false, false, false],
+    [true, false, false, false, false],
+    [true, false, false, false, false],
+    [true, false, false, false, false],
+  ],
+  diagonal: [
+    [true, false, false, false, false],
+    [false, true, false, false, false],
+    [false, false, true, false, false],
+    [false, false, false, true, false],
+    [false, false, false, false, true],
+  ],
+  "4_esquinas": [
+    [true, false, false, false, true],
+    [false, false, false, false, false],
+    [false, false, false, false, false],
+    [false, false, false, false, false],
+    [true, false, false, false, true],
+  ],
+  marco_completo: [
+    [true, true, true, true, true],
+    [true, false, false, false, true],
+    [true, false, false, false, true],
+    [true, false, false, false, true],
+    [true, true, true, true, true],
+  ],
+  carton_lleno: [
+    [true, true, true, true, true],
+    [true, true, true, true, true],
+    [true, true, true, true, true],
+    [true, true, true, true, true],
+    [true, true, true, true, true],
+  ],
+};
+
+const WIN_PATTERN_HINTS: Record<string, string> = {
+  linea_horizontal: "Completa cualquier fila",
+  linea_vertical: "Completa cualquier columna",
+  diagonal: "Completa cualquier diagonal",
+  "4_esquinas": "Marca las 4 esquinas",
+  marco_completo: "Marca todo el borde",
+  carton_lleno: "Marca todas las casillas",
+};
+
+/** Mini-grilla 5x5 que ilustra el patrón de victoria */
+function WinPatternPreview({ gameType }: { gameType: string }) {
+  const pattern = WIN_PATTERNS[gameType];
+  if (!pattern) return null;
+
+  return (
+    <Stack alignItems="center" spacing={0.75}>
+      <Typography variant="caption" color="text.secondary" fontWeight="bold">
+        {WIN_PATTERN_HINTS[gameType]}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "3px",
+          width: 80,
+          height: 80,
+        }}
+      >
+        {pattern.flat().map((active, i) => (
+          <Box
+            key={i}
+            sx={{
+              borderRadius: 0.5,
+              bgcolor: active ? "primary.main" : "action.hover",
+              opacity: active ? 1 : 0.4,
+              transition: "all 0.3s",
+            }}
+          />
+        ))}
+      </Box>
+    </Stack>
+  );
+}
+
 const STATUS_MAP: Record<string, { label: string; color: "warning" | "success" | "info" }> = {
   waiting: { label: "En espera", color: "warning" },
   playing: { label: "En curso", color: "success" },
@@ -687,6 +777,7 @@ export default function PlayPage() {
                     size="small"
                     sx={{ px: 0.75 }}
                   />
+                  <WinPatternPreview gameType={game.type} />
                   <Typography variant="body2" color="text.secondary" align="center">
                     Mientras tanto, revisa tu cartón abajo
                   </Typography>
@@ -876,9 +967,12 @@ export default function PlayPage() {
             }}
           >
             <CardContent sx={{ px: { xs: 1.5, sm: 3 }, py: 2 }}>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                <GridViewIcon color="primary" />
-                <Typography variant="h6">Mi cartón</Typography>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <GridViewIcon color="primary" />
+                  <Typography variant="h6">Mi cartón</Typography>
+                </Stack>
+                <WinPatternPreview gameType={game.type} />
               </Stack>
 
               {/* Header B-I-N-G-O */}
