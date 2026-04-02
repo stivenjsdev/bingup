@@ -57,6 +57,8 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/Chat';
+import TimerIcon from '@mui/icons-material/Timer';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useSoundEffects } from '@/app/hooks/useSoundEffects';
 import { useSoundContext } from '@/app/contexts/SoundContext';
@@ -155,6 +157,8 @@ export default function AdminPage() {
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
+  const [autoDraw, setAutoDraw] = useState(false);
+  const [autoDrawInterval, setAutoDrawInterval] = useState(5);
 
   // Ref para los sonidos (para usar dentro de useEffect)
   const soundsRef = useRef(sounds);
@@ -173,6 +177,7 @@ export default function AdminPage() {
   const restartingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const finishingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoDrawRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timeout de seguridad para liberar locks (ms)
   const ACTION_TIMEOUT = 3000;
@@ -249,6 +254,7 @@ export default function AdminPage() {
       round: number;
       winners: GameData['winners'];
     }) => {
+      setAutoDraw(false);
       setGame((prev) =>
         prev ? { ...prev, status: 'finished', winners: data.winners } : prev,
       );
@@ -266,6 +272,7 @@ export default function AdminPage() {
     };
 
     const onRestarted = (data: { game: GameData; players: PlayerData[] }) => {
+      setAutoDraw(false);
       setGame(data.game);
       setPlayers(data.players);
       setLastNumber(null);
@@ -281,6 +288,7 @@ export default function AdminPage() {
     };
 
     const onFinished = (data: { game: GameData }) => {
+      setAutoDraw(false);
       setGame(data.game);
       setFinishing(false);
       finishingLockRef.current = false; // Liberar lock
@@ -434,6 +442,53 @@ export default function AdminPage() {
       setSendingMessage(false);
     }, ACTION_TIMEOUT);
   };
+
+  const stopAutoDraw = useCallback(() => {
+    setAutoDraw(false);
+    if (autoDrawRef.current) {
+      clearInterval(autoDrawRef.current);
+      autoDrawRef.current = null;
+    }
+  }, []);
+
+  const toggleAutoDraw = () => {
+    if (autoDraw) {
+      stopAutoDraw();
+    } else {
+      setAutoDraw(true);
+    }
+  };
+
+  // Efecto para el auto-draw: inicia/detiene el intervalo
+  useEffect(() => {
+    if (!autoDraw || !socket || game?.status !== 'playing') {
+      if (autoDrawRef.current) {
+        clearInterval(autoDrawRef.current);
+        autoDrawRef.current = null;
+      }
+      return;
+    }
+
+    autoDrawRef.current = setInterval(() => {
+      if (!drawingLockRef.current) {
+        drawingLockRef.current = true;
+        setDrawing(true);
+        socket.emit('game:draw', { gameId, token: getToken() });
+
+        drawingTimeoutRef.current = setTimeout(() => {
+          drawingLockRef.current = false;
+          setDrawing(false);
+        }, ACTION_TIMEOUT);
+      }
+    }, autoDrawInterval * 1000);
+
+    return () => {
+      if (autoDrawRef.current) {
+        clearInterval(autoDrawRef.current);
+        autoDrawRef.current = null;
+      }
+    };
+  }, [autoDraw, autoDrawInterval, socket, gameId, getToken, game?.status]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(gameId);
@@ -916,6 +971,39 @@ export default function AdminPage() {
                       >
                         {drawing ? 'Sacando...' : 'Sacar balota'}
                       </Button>
+
+                      {/* Auto-draw */}
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        sx={{ width: '100%' }}
+                      >
+                        <TextField
+                          type="number"
+                          size="small"
+                          label="Segundos"
+                          value={autoDrawInterval}
+                          onChange={(e) => {
+                            const v = Math.max(1, Math.min(60, Number(e.target.value) || 1));
+                            setAutoDrawInterval(v);
+                          }}
+                          disabled={autoDraw}
+                          slotProps={{
+                            htmlInput: { min: 1, max: 60 },
+                          }}
+                          sx={{ width: 100 }}
+                        />
+                        <Button
+                          variant={autoDraw ? 'contained' : 'outlined'}
+                          color={autoDraw ? 'warning' : 'primary'}
+                          fullWidth
+                          startIcon={autoDraw ? <PauseCircleIcon /> : <TimerIcon />}
+                          onClick={toggleAutoDraw}
+                        >
+                          {autoDraw ? 'Detener auto' : 'Auto balota'}
+                        </Button>
+                      </Stack>
 
                       <Divider />
 
