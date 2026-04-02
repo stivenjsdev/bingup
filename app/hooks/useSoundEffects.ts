@@ -28,6 +28,7 @@ const SOUNDS = {
   // Notificaciones
   playerJoin: "/sounds/player-join.mp3", // Jugador se une
   playerLeave: "/sounds/player-leave.mp3", // Jugador se va
+  adminMessage: "/sounds/admin-message.mp3", // Mensaje del administrador
 
   // UI
   click: "/sounds/click.mp3", // Click genérico
@@ -60,6 +61,7 @@ export function useSoundEffects() {
   const [playCardShuffle] = useSound(SOUNDS.cardShuffle, { volume: 0.5 });
   const [playPlayerJoin] = useSound(SOUNDS.playerJoin, { volume: 0.4 });
   const [playPlayerLeave] = useSound(SOUNDS.playerLeave, { volume: 0.4 });
+  const [playAdminMessage] = useSound(SOUNDS.adminMessage, { volume: 0.6 });
   const [playClick] = useSound(SOUNDS.click, { volume: 0.3 });
   const [playSuccess] = useSound(SOUNDS.success, { volume: 0.5 });
   const [playError] = useSound(SOUNDS.error, { volume: 0.5 });
@@ -77,13 +79,14 @@ export function useSoundEffects() {
     soundsRef.current.set("cardShuffle", playCardShuffle);
     soundsRef.current.set("playerJoin", playPlayerJoin);
     soundsRef.current.set("playerLeave", playPlayerLeave);
+    soundsRef.current.set("adminMessage", playAdminMessage);
     soundsRef.current.set("click", playClick);
     soundsRef.current.set("success", playSuccess);
     soundsRef.current.set("error", playError);
   }, [
     playBallCalled, playBallDraw, playMark, playBingoCalled, playBingoWin,
     playBingoFalse, playGameStart, playGameEnd, playCardShuffle,
-    playPlayerJoin, playPlayerLeave, playClick, playSuccess, playError
+    playPlayerJoin, playPlayerLeave, playAdminMessage, playClick, playSuccess, playError
   ]);
 
   // Función para reproducir un sonido por nombre
@@ -115,6 +118,7 @@ export function useSoundEffects() {
     playCardShuffle: useCallback(() => play("cardShuffle"), [play]),
     playPlayerJoin: useCallback(() => play("playerJoin"), [play]),
     playPlayerLeave: useCallback(() => play("playerLeave"), [play]),
+    playAdminMessage: useCallback(() => play("adminMessage"), [play]),
     playClick: useCallback(() => play("click"), [play]),
     playSuccess: useCallback(() => play("success"), [play]),
     playError: useCallback(() => play("error"), [play]),

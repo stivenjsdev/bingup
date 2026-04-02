@@ -20,6 +20,7 @@ const THROTTLE_COOLDOWNS = {
   "game:restart": 1000,
   "game:finish": 1000,
   "game:change-card": 500,
+  "game:send-message": 1000,
 };
 
 /**
@@ -366,6 +367,35 @@ export function setupSocket(httpServer) {
       } catch (err) {
         console.error("Error al sacar balota:", err);
         socket.emit("error", "No se pudo sacar la balota");
+      }
+    });
+
+    // Enviar mensaje global a todos los jugadores (solo admin)
+    socket.on("game:send-message", async ({ gameId, token, message }) => {
+      try {
+        if (isThrottled(socket.id, "game:send-message")) return;
+
+        if (!message || typeof message !== "string" || !message.trim()) {
+          return socket.emit("error", "El mensaje no puede estar vacío");
+        }
+        if (message.length > 500) {
+          return socket.emit("error", "El mensaje no puede superar los 500 caracteres");
+        }
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+        if (!(await isAdmin(gameId, token))) {
+          return socket.emit("error", "Solo el administrador puede enviar mensajes");
+        }
+
+        const content = message.trim();
+
+        io.to(`game:${gameId}`).emit("game:message", { content });
+
+        console.log(`💬 Mensaje del admin en partida ${gameId}: ${content}`);
+      } catch (err) {
+        console.error("Error al enviar mensaje:", err);
+        socket.emit("error", "No se pudo enviar el mensaje");
       }
     });
 

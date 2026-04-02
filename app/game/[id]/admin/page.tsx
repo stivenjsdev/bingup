@@ -55,6 +55,8 @@ import WifiOffIcon from '@mui/icons-material/WifiOff';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import SendIcon from '@mui/icons-material/Send';
+import ChatIcon from '@mui/icons-material/Chat';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useSoundEffects } from '@/app/hooks/useSoundEffects';
 import { useSoundContext } from '@/app/contexts/SoundContext';
@@ -150,6 +152,9 @@ export default function AdminPage() {
   const [restarting, setRestarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [showFinish, setShowFinish] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
 
   // Ref para los sonidos (para usar dentro de useEffect)
   const soundsRef = useRef(sounds);
@@ -160,12 +165,14 @@ export default function AdminPage() {
   const startingLockRef = useRef(false);
   const restartingLockRef = useRef(false);
   const finishingLockRef = useRef(false);
+  const messageLockRef = useRef(false);
 
   // Refs para timeouts de seguridad (liberar locks si el servidor no responde)
   const drawingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const restartingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const finishingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timeout de seguridad para liberar locks (ms)
   const ACTION_TIMEOUT = 3000;
@@ -282,22 +289,34 @@ export default function AdminPage() {
       soundsRef.current.playGameEnd();
     };
 
+    const onMessage = () => {
+      setSendingMessage(false);
+      messageLockRef.current = false;
+      if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+      setMessageText('');
+      setMessageSent(true);
+      setTimeout(() => setMessageSent(false), 2000);
+    };
+
     const onError = (msg: string) => {
       setActionError(msg);
       setDrawing(false);
       setStarting(false);
       setRestarting(false);
       setFinishing(false);
+      setSendingMessage(false);
       // Liberar todos los locks en caso de error
       drawingLockRef.current = false;
       startingLockRef.current = false;
       restartingLockRef.current = false;
       finishingLockRef.current = false;
+      messageLockRef.current = false;
       // Cancelar todos los timeouts pendientes
       if (drawingTimeoutRef.current) clearTimeout(drawingTimeoutRef.current);
       if (startingTimeoutRef.current) clearTimeout(startingTimeoutRef.current);
       if (restartingTimeoutRef.current) clearTimeout(restartingTimeoutRef.current);
       if (finishingTimeoutRef.current) clearTimeout(finishingTimeoutRef.current);
+      if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       if (loading) {
         setError(msg);
         setLoading(false);
@@ -312,6 +331,7 @@ export default function AdminPage() {
     socket.on('game:bingo-attempt', onBingoAttempt);
     socket.on('game:restarted', onRestarted);
     socket.on('game:finished', onFinished);
+    socket.on('game:message', onMessage);
     socket.on('error', onError);
 
     return () => {
@@ -323,6 +343,7 @@ export default function AdminPage() {
       socket.off('game:bingo-attempt', onBingoAttempt);
       socket.off('game:restarted', onRestarted);
       socket.off('game:finished', onFinished);
+      socket.off('game:message', onMessage);
       socket.off('error', onError);
     };
   }, [socket, gameId, getToken, loading]);
@@ -392,6 +413,25 @@ export default function AdminPage() {
     finishingTimeoutRef.current = setTimeout(() => {
       finishingLockRef.current = false;
       setFinishing(false);
+    }, ACTION_TIMEOUT);
+  };
+
+  const handleSendMessage = () => {
+    const trimmed = messageText.trim();
+    if (!socket || messageLockRef.current || sendingMessage || !trimmed) return;
+    messageLockRef.current = true;
+    setActionError('');
+    setSendingMessage(true);
+    sounds.playClick();
+    socket.emit('game:send-message', {
+      gameId,
+      token: getToken(),
+      message: trimmed,
+    });
+
+    messageTimeoutRef.current = setTimeout(() => {
+      messageLockRef.current = false;
+      setSendingMessage(false);
     }, ACTION_TIMEOUT);
   };
 
@@ -1107,6 +1147,69 @@ export default function AdminPage() {
                       ))}
                     </List>
                   )}
+                </CardContent>
+              </Card>
+            </Grow>
+
+            {/* Mensaje global */}
+            <Grow
+              in
+              timeout={500}
+              style={{ transitionDelay: '150ms' }}
+            >
+              <Card
+                variant="outlined"
+                sx={{
+                  transition: 'box-shadow 0.3s',
+                  '&:hover': { boxShadow: 4 },
+                }}
+              >
+                <CardContent>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    sx={{ mb: 1.5 }}
+                  >
+                    <ChatIcon color="primary" />
+                    <Typography variant="h6">Mensaje global</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Escribe un mensaje para todos..."
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      disabled={sendingMessage}
+                      slotProps={{
+                        htmlInput: { maxLength: 500 },
+                      }}
+                    />
+                    <Tooltip title={messageSent ? '¡Enviado!' : 'Enviar mensaje'}>
+                      <span>
+                        <IconButton
+                          color={messageSent ? 'success' : 'primary'}
+                          onClick={handleSendMessage}
+                          disabled={sendingMessage || !messageText.trim()}
+                        >
+                          {sendingMessage ? (
+                            <CircularProgress size={20} color="inherit" />
+                          ) : messageSent ? (
+                            <CheckCircleIcon />
+                          ) : (
+                            <SendIcon />
+                          )}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
                 </CardContent>
               </Card>
             </Grow>

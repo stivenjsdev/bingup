@@ -43,6 +43,7 @@ import PersonOffIcon from "@mui/icons-material/PersonOff";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import { useSocket } from "@/app/hooks/useSocket";
 import { useSoundEffects } from "@/app/hooks/useSoundEffects";
 import { useSoundContext } from "@/app/contexts/SoundContext";
@@ -127,6 +128,12 @@ interface PlayerNotification {
   type: "join" | "leave" | "reconnect";
 }
 
+// Mensaje global del administrador
+interface AdminMessage {
+  id: string;
+  content: string;
+}
+
 export default function PlayPage() {
   const params = useParams();
   const router = useRouter();
@@ -152,6 +159,7 @@ export default function PlayPage() {
 
   // Notificaciones de jugadores
   const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
+  const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const playersRef = useRef<{ _id: string; name: string; online: boolean }[]>([]);
   const isInitialLoadRef = useRef(true); // Ignorar primera carga de jugadores
   const playerIdRef = useRef<string | null>(null); // Para saber qué notificaciones ignorar
@@ -382,6 +390,15 @@ export default function PlayPage() {
       }, 250);
     };
 
+    const onGameMessage = (data: { content: string }) => {
+      const msg: AdminMessage = {
+        id: `msg-${Date.now()}`,
+        content: data.content,
+      };
+      setAdminMessages((prev) => [...prev, msg].slice(-3));
+      soundsRef.current.playAdminMessage();
+    };
+
     const onError = (msg: string) => {
       if (loading) {
         setError(msg);
@@ -407,6 +424,7 @@ export default function PlayPage() {
     socket.on("game:finished", onFinished);
     socket.on("game:card-changed", onCardChanged);
     socket.on("game:players", onPlayers);
+    socket.on("game:message", onGameMessage);
     socket.on("error", onError);
 
     return () => {
@@ -420,6 +438,7 @@ export default function PlayPage() {
       socket.off("game:finished", onFinished);
       socket.off("game:card-changed", onCardChanged);
       socket.off("game:players", onPlayers);
+      socket.off("game:message", onGameMessage);
       socket.off("error", onError);
     };
   }, [socket, gameId, getToken, loading, player?._id, player?.name]);
@@ -469,6 +488,10 @@ export default function PlayPage() {
   // Cerrar notificación de jugador
   const handleCloseNotification = (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const handleCloseAdminMessage = (id: string) => {
+    setAdminMessages((prev) => prev.filter((m) => m.id !== id));
   };
 
   if (loading) {
@@ -1024,6 +1047,27 @@ export default function PlayPage() {
             sx={{ width: "100%", boxShadow: 3 }}
           >
             {notif.message}
+          </Alert>
+        </Snackbar>
+      ))}
+
+      {/* Mensajes globales del administrador */}
+      {adminMessages.map((msg, index) => (
+        <Snackbar
+          key={msg.id}
+          open
+          autoHideDuration={6000}
+          onClose={() => handleCloseAdminMessage(msg.id)}
+          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          sx={{ top: { xs: 24 + index * 64, sm: 24 + index * 72 } }}
+        >
+          <Alert
+            onClose={() => handleCloseAdminMessage(msg.id)}
+            severity="info"
+            icon={<CampaignIcon fontSize="small" />}
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {msg.content}
           </Alert>
         </Snackbar>
       ))}
