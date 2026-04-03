@@ -3,6 +3,7 @@ import {
   Box,
   Card,
   CardContent,
+  Container,
   Typography,
   IconButton,
   Chip,
@@ -10,6 +11,14 @@ import {
   Button,
   Avatar,
   Badge,
+  Stack,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Alert,
+  TextField,
+  Divider,
 } from '@mui/material';
 
 // ─── Animaciones ──────────────────────────────────────────────
@@ -29,12 +38,26 @@ const spin = keyframes`
   100% { transform: rotate(360deg); }
 `;
 
+// ─── Containers ───────────────────────────────────────────────
+export const PageWrapper = styled(Container)({
+  // maxWidth is passed as prop
+});
+
+export const ErrorWrapper = styled(Container)({
+  // maxWidth="sm" variant
+});
+
 // ─── Layout ───────────────────────────────────────────────────
 export const CenteredFullHeight = styled(Box)({
   minHeight: '100vh',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+});
+
+export const CenteredStack = styled(Stack)({
+  alignItems: 'center',
+  gap: 16,
 });
 
 export const PageContainer = styled(Box)(({ theme }) => ({
@@ -45,6 +68,20 @@ export const PageContainer = styled(Box)(({ theme }) => ({
     paddingTop: theme.spacing(3),
     paddingBottom: theme.spacing(3),
   },
+}));
+
+export const MainLayout = styled(Stack)(({ theme }) => ({
+  flexDirection: 'column',
+  gap: theme.spacing(3),
+  [theme.breakpoints.up('md')]: {
+    flexDirection: 'row',
+  },
+}));
+
+export const LeftColumn = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(3),
+  flex: 1,
+  minWidth: 0,
 }));
 
 // ─── Header ───────────────────────────────────────────────────
@@ -64,6 +101,26 @@ export const HeaderCardContent = styled(CardContent)(({ theme }) => ({
   '&:last-child': { paddingBottom: theme.spacing(2) },
 }));
 
+export const HeaderTopRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: theme.spacing(1),
+}));
+
+export const HeaderLeftGroup = styled(Stack)({
+  flexDirection: 'row',
+  gap: 8,
+  alignItems: 'center',
+  minWidth: 0,
+});
+
+export const HeaderRightGroup = styled(Stack)({
+  flexDirection: 'row',
+  gap: 4,
+  alignItems: 'center',
+});
+
 export const HeaderTitle = styled(Typography)(({ theme }) => ({
   fontWeight: 'bold',
   overflow: 'hidden',
@@ -73,6 +130,18 @@ export const HeaderTitle = styled(Typography)(({ theme }) => ({
   [theme.breakpoints.up('sm')]: {
     fontSize: theme.typography.h5.fontSize,
   },
+}));
+
+export const HeaderGameIcon = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  fontSize: 28,
+  [theme.breakpoints.up('sm')]: {
+    fontSize: 36,
+  },
+}));
+
+export const HeaderHomeButton = styled(IconButton)(({ theme }) => ({
+  color: theme.palette.primary.contrastText,
 }));
 
 export const HeaderIconButton = styled(IconButton, {
@@ -108,6 +177,17 @@ export const SpinningIcon = styled('span')({
   animation: `${spin} 1s linear infinite`,
 });
 
+export const HeaderChipsRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(0.75),
+  flexWrap: 'wrap',
+}));
+
+export const StatusChip = styled(Chip)(({ theme }) => ({
+  paddingLeft: theme.spacing(0.75),
+  paddingRight: theme.spacing(0.75),
+}));
+
 export const HeaderChip = styled(Chip)(({ theme }) => ({
   paddingLeft: theme.spacing(0.75),
   paddingRight: theme.spacing(0.75),
@@ -130,6 +210,21 @@ export const RoomCodeCardContent = styled(CardContent)(({ theme }) => ({
   '&:last-child': { paddingBottom: theme.spacing(1.5) },
 }));
 
+export const RoomCodeRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: theme.spacing(1),
+}));
+
+export const RoomCodeLeft = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+  minWidth: 0,
+  flex: 1,
+}));
+
 export const RoomCodeText = styled(Typography)({
   fontFamily: 'monospace',
   fontWeight: 'bold',
@@ -137,6 +232,19 @@ export const RoomCodeText = styled(Typography)({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+});
+
+export const CopyButton = styled(IconButton)({
+  flexShrink: 0,
+});
+
+// ─── Alertas ──────────────────────────────────────────────────
+export const SpacedAlert = styled(Alert)(({ theme }) => ({
+  marginBottom: theme.spacing(2),
+}));
+
+export const FullWidthAlert = styled(Alert)({
+  width: '100%',
 });
 
 // ─── Tarjetas con hover ──────────────────────────────────────
@@ -164,6 +272,59 @@ export const BoardCard = styled(Card)({
   minWidth: 0,
   ...hoverMixin,
 });
+
+// ─── Secciones (título con icono) ─────────────────────────────
+export const SectionHeader = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+  marginBottom: theme.spacing(2),
+}));
+
+export const SectionHeaderCompact = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+  marginBottom: theme.spacing(1),
+}));
+
+export const SectionHeaderMedium = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+  marginBottom: theme.spacing(1.5),
+}));
+
+// ─── Controles del juego ──────────────────────────────────────
+export const ControlsStack = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(2),
+}));
+
+export const PlayingStack = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(2),
+  alignItems: 'center',
+}));
+
+export const AutoDrawRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+  width: '100%',
+}));
+
+export const SecondsInput = styled(TextField)({
+  width: 100,
+});
+
+export const ConfirmStack = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(1.5),
+  marginTop: theme.spacing(1),
+}));
+
+export const RestartOptionsStack = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(2),
+  marginTop: theme.spacing(1),
+}));
 
 // ─── Botón de acción principal ────────────────────────────────
 export const ActionButton = styled(Button)(({ theme }) => ({
@@ -194,8 +355,8 @@ export const BallPaper = styled(Paper, {
   color: '#fff',
   animation: `${dropIn} 0.5s ease-out`,
   [theme.breakpoints.up('sm')]: {
-    // width: 100,
-    // height: 100,
+    width: 100,
+    height: 100,
   },
 }));
 
@@ -211,6 +372,21 @@ export const BallNumber = styled(Typography)({
 });
 
 // ─── Tablero de balotas ──────────────────────────────────────
+export const BoardColumnsStack = styled(Stack)(({ theme }) => ({
+  gap: theme.spacing(1.5),
+}));
+
+export const ColumnHeaderRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(0.5),
+  alignItems: 'center',
+  marginBottom: theme.spacing(1),
+}));
+
+export const ColumnDivider = styled(Divider)({
+  flex: 1,
+});
+
 export const ColumnLabel = styled(Typography, {
   shouldForwardProp: (prop) => prop !== 'labelColor',
 })<{ labelColor: string }>(({ labelColor }) => ({
@@ -218,6 +394,13 @@ export const ColumnLabel = styled(Typography, {
   color: labelColor,
   width: 20,
   textAlign: 'center',
+}));
+
+export const BallsGrid = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: theme.spacing(0.5),
+  paddingLeft: theme.spacing(0.5),
 }));
 
 export const BoardBall = styled(Box, {
@@ -248,6 +431,38 @@ export const BoardBall = styled(Box, {
 );
 
 // ─── Jugadores ────────────────────────────────────────────────
+export const PlayersHeaderRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: theme.spacing(1),
+}));
+
+export const PlayersLeftGroup = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+}));
+
+export const PlayersBadgesGroup = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(0.5),
+  alignItems: 'center',
+}));
+
+export const OnlineChip = styled(Chip)({
+  '& .MuiChip-icon': { color: 'inherit' },
+});
+
+export const PlayerListItem = styled(ListItem)(({ theme }) => ({
+  paddingTop: theme.spacing(0.5),
+  paddingBottom: theme.spacing(0.5),
+}));
+
+export const PlayerIconCell = styled(ListItemIcon)({
+  minWidth: 40,
+});
+
 export const PlayerAvatar = styled(Avatar, {
   shouldForwardProp: (prop) => prop !== 'index' && prop !== 'online',
 })<{ index: number; online: boolean }>(({ theme, index, online }) => ({
@@ -271,18 +486,41 @@ export const PlayerBadge = styled(Badge, {
   },
 }));
 
+export const PlayerStatusText = styled(ListItemText, {
+  shouldForwardProp: (prop) => prop !== 'online',
+})<{ online: boolean }>(({ theme, online }) => ({
+  '& .MuiListItemText-secondary': {
+    color: online ? theme.palette.success.main : theme.palette.error.main,
+    fontSize: theme.typography.caption.fontSize,
+  },
+}));
+
+export const EmptyPlayersText = styled(Typography)(({ theme }) => ({
+  paddingTop: theme.spacing(2),
+  paddingBottom: theme.spacing(2),
+  textAlign: 'center',
+}));
+
+// ─── Mensaje global ───────────────────────────────────────────
+export const MessageRow = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+}));
+
 // ─── Ganadores ────────────────────────────────────────────────
+export const WinnerListItem = styled(ListItem)(({ theme }) => ({
+  paddingTop: theme.spacing(0.5),
+  paddingBottom: theme.spacing(0.5),
+}));
+
+export const WinnerIconCell = styled(ListItemIcon)({
+  minWidth: 40,
+});
+
 export const WinnerAvatar = styled(Avatar)(({ theme }) => ({
   width: 30,
   height: 30,
   fontSize: theme.typography.body2.fontSize,
   backgroundColor: theme.palette.warning.main,
   color: theme.palette.warning.contrastText,
-}));
-
-// ─── Misc ─────────────────────────────────────────────────────
-export const EmptyPlayersText = styled(Typography)(({ theme }) => ({
-  paddingTop: theme.spacing(2),
-  paddingBottom: theme.spacing(2),
-  textAlign: 'center',
 }));
