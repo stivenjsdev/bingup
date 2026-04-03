@@ -610,17 +610,17 @@ export function setupSocket(httpServer) {
     // =============================================
 
     // Jugador sale de la página (va al home u otra página)
+    // Solo marca offline si este socket es el activo del jugador
+    // (evita que una pestaña antigua marque offline al jugador activo en otra pestaña)
     socket.on("game:leave", async ({ gameId, token }) => {
       try {
         if (!isValidObjectId(gameId)) return;
 
-        const player = await Player.findOneAndUpdate(
-          { game: gameId, token },
-          { online: false },
-          { returnDocument: "after" }
-        );
+        const player = await Player.findOne({ game: gameId, token });
 
-        if (player) {
+        if (player && player.socketId === socket.id) {
+          player.online = false;
+          await player.save();
           socket.leave(`game:${gameId}`);
           const players = await Player.find({ game: gameId }).lean();
           io.to(`game:${gameId}`).emit("game:players", players);
@@ -642,6 +642,18 @@ export function setupSocket(httpServer) {
         if (!game) return socket.emit("error", "Partida no encontrada");
         if (game.adminToken !== token) {
           return socket.emit("error", "Token de administrador inválido");
+        }
+
+        // Si hay otra pestaña/ventana conectada como admin, desconectarla
+        const oldSocketId = game.adminSocketId;
+        if (oldSocketId && oldSocketId !== socket.id) {
+          const oldSocket = io.sockets.sockets.get(oldSocketId);
+          if (oldSocket) {
+            oldSocket.emit("game:session-taken", {
+              message: "Tu sesión de admin fue abierta en otra pestaña",
+            });
+            oldSocket.leave(`game:${gameId}`);
+          }
         }
 
         // Actualizar socketId del admin
@@ -681,6 +693,18 @@ export function setupSocket(httpServer) {
         const player = await Player.findOne({ game: gameId, token });
         if (!player) {
           return socket.emit("error", "Token de jugador inválido");
+        }
+
+        // Si hay otra pestaña/ventana conectada con este jugador, desconectarla
+        const oldSocketId = player.socketId;
+        if (oldSocketId && oldSocketId !== socket.id) {
+          const oldSocket = io.sockets.sockets.get(oldSocketId);
+          if (oldSocket) {
+            oldSocket.emit("game:session-taken", {
+              message: "Tu sesión fue abierta en otra pestaña",
+            });
+            oldSocket.leave(`game:${gameId}`);
+          }
         }
 
         // Actualizar socketId y estado online del jugador

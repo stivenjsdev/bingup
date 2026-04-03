@@ -363,6 +363,21 @@ export function useGamePlay() {
       soundsRef.current.playAdminMessage(); // Sonido de mensaje
     };
 
+    // ─── Evento: Sesión tomada por otra pestaña ───────────────
+    // El servidor detectó que el mismo jugador se conectó desde
+    // otra pestaña/ventana. Esta pestaña queda inactiva.
+    const onSessionTaken = () => {
+      setError('Tu sesión fue abierta en otra pestaña. Usa esa pestaña para continuar.');
+      setLoading(false);
+      // Resetear estado para deshabilitar toda interacción
+      setCallingBingo(false);
+      setChangingCard(false);
+      bingoLockRef.current = false;
+      changingCardLockRef.current = false;
+      if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current);
+      if (changingCardTimeoutRef.current) clearTimeout(changingCardTimeoutRef.current);
+    };
+
     // ─── Evento: Error del servidor ─────────────────────────
     // Cualquier error emitido por el servidor. Resetea todos los
     // locks y spinners para que la UI no quede bloqueada.
@@ -394,6 +409,7 @@ export function useGamePlay() {
     socket.on('game:card-changed', onCardChanged);
     socket.on('game:players', onPlayers);
     socket.on('game:message', onGameMessage);
+    socket.on('game:session-taken', onSessionTaken);
     socket.on('error', onError);
 
     // ─── Cleanup: Desregistrar listeners al desmontarse ─────
@@ -411,6 +427,7 @@ export function useGamePlay() {
       socket.off('game:card-changed', onCardChanged);
       socket.off('game:players', onPlayers);
       socket.off('game:message', onGameMessage);
+      socket.off('game:session-taken', onSessionTaken);
       socket.off('error', onError);
     };
   }, [socket, gameId, getToken, loading, player?._id, player?.name]);

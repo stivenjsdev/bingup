@@ -262,6 +262,14 @@ export function useGameAdmin() {
       setTimeout(() => setMessageSent(false), 2000); // Ocultar feedback después de 2s
     };
 
+    // ─── Evento: Sesión tomada por otra pestaña ───────────────
+    // El servidor detectó que el mismo admin se conectó desde
+    // otra pestaña/ventana. Esta pestaña queda inactiva.
+    const onSessionTaken = () => {
+      setError('Tu sesión de admin fue abierta en otra pestaña. Usa esa pestaña para continuar.');
+      setLoading(false);
+    };
+
     // ─── Evento: Error del servidor ─────────────────────────
     // Cualquier error emitido por el servidor (validación, permisos, etc.)
     // Resetea TODOS los locks y spinners para que la UI no quede bloqueada
@@ -302,6 +310,7 @@ export function useGameAdmin() {
     socket.on('game:restarted', onRestarted);
     socket.on('game:finished', onFinished);
     socket.on('game:message', onMessage);
+    socket.on('game:session-taken', onSessionTaken);
     socket.on('error', onError);
 
     // ─── Cleanup: Desregistrar listeners al desmontarse ─────
@@ -317,6 +326,7 @@ export function useGameAdmin() {
       socket.off('game:restarted', onRestarted);
       socket.off('game:finished', onFinished);
       socket.off('game:message', onMessage);
+      socket.off('game:session-taken', onSessionTaken);
       socket.off('error', onError);
     };
   }, [socket, gameId, getToken, loading]);
