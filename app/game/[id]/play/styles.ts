@@ -609,7 +609,7 @@ export const PatternPreviewCell = styled(Box, {
   backgroundColor: active
     ? theme.palette.primary.main
     : theme.palette.action.hover,
-  opacity: active ? 1 : 0.4,
+  opacity: active ? 1 : 1,
   transition: 'all 0.3s',
 }));
 
