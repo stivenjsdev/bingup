@@ -63,6 +63,8 @@ export function useGameAdmin() {
   const [messageText, setMessageText] = useState(''); // Texto del input de mensaje global
   const [messageSent, setMessageSent] = useState(false); // Feedback "¡Enviado!" temporal (2 segundos)
   const [autoDraw, setAutoDraw] = useState(false); // Si el auto-draw está activo (saca balotas automáticamente)
+  const [cardsPerPlayer, setCardsPerPlayer] = useState(1); // Cantidad de cartones por jugador
+  const [applyingCards, setApplyingCards] = useState(false); // Loading al aplicar cambio de cartones
   const [autoDrawInterval, setAutoDrawInterval] = useState(5); // Intervalo en segundos entre cada balota automática
 
   // ═══════════════════════════════════════════════════════════
@@ -159,6 +161,7 @@ export function useGameAdmin() {
       if (data.role === 'admin') {
         setGame(data.game); // Sincronizar estado del juego
         setPlayers(data.players); // Sincronizar lista de jugadores
+        setCardsPerPlayer(data.game.cardsPerPlayer || 1); // Sincronizar cartones por jugador
         setLoading(false); // Ocultar spinner de carga
         // Si ya había balotas cantadas, mostrar la última
         if (data.game.calledNumbers.length > 0) {
@@ -262,6 +265,14 @@ export function useGameAdmin() {
       setTimeout(() => setMessageSent(false), 2000); // Ocultar feedback después de 2s
     };
 
+    // ─── Evento: Cartones por jugador actualizados ──────────
+    const onCardsPerPlayerUpdated = (data: { game: GameData; players: PlayerData[] }) => {
+      setGame(data.game);
+      setPlayers(data.players);
+      setCardsPerPlayer(data.game.cardsPerPlayer || 1);
+      setApplyingCards(false);
+    };
+
     // ─── Evento: Sesión tomada por otra pestaña ───────────────
     // El servidor detectó que el mismo admin se conectó desde
     // otra pestaña/ventana. Esta pestaña queda inactiva.
@@ -310,6 +321,7 @@ export function useGameAdmin() {
     socket.on('game:restarted', onRestarted);
     socket.on('game:finished', onFinished);
     socket.on('game:message', onMessage);
+    socket.on('game:cards-per-player-updated', onCardsPerPlayerUpdated);
     socket.on('game:session-taken', onSessionTaken);
     socket.on('error', onError);
 
@@ -326,6 +338,7 @@ export function useGameAdmin() {
       socket.off('game:restarted', onRestarted);
       socket.off('game:finished', onFinished);
       socket.off('game:message', onMessage);
+      socket.off('game:cards-per-player-updated', onCardsPerPlayerUpdated);
       socket.off('game:session-taken', onSessionTaken);
       socket.off('error', onError);
     };
@@ -451,6 +464,26 @@ export function useGameAdmin() {
   // Navegar a la página principal
   const goHome = useCallback(() => router.push('/'), [router]);
 
+  // Actualizar cantidad de cartones por jugador (solo local)
+  const handleCardsPerPlayerChange = useCallback(
+    (value: number) => {
+      const numCards = Math.max(1, Math.min(10, Math.floor(value || 1)));
+      setCardsPerPlayer(numCards);
+    },
+    [],
+  );
+
+  // Aplicar la cantidad de cartones por jugador al servidor
+  const applyCardsPerPlayer = useCallback(() => {
+    if (!socket || game?.status !== 'waiting' || applyingCards) return;
+    setApplyingCards(true);
+    socket.emit('game:update-cards-per-player', {
+      gameId,
+      token: getToken(),
+      cardsPerPlayer,
+    });
+  }, [socket, game?.status, gameId, getToken, cardsPerPlayer, applyingCards]);
+
   // ═══════════════════════════════════════════════════════════
   // EFECTO: Auto-draw (sacar balotas automáticamente)
   //
@@ -542,6 +575,10 @@ export function useGameAdmin() {
     messageSent, // Feedback "¡Enviado!"
     autoDraw, // Si el auto-draw está activo
     autoDrawInterval, // Intervalo actual en segundos
+    cardsPerPlayer, // Cantidad de cartones por jugador
+    applyingCards, // Loading al aplicar cambio de cartones
+    handleCardsPerPlayerChange, // Cambiar cantidad de cartones (local)
+    applyCardsPerPlayer, // Aplicar cantidad al servidor
     handleAutoDrawIntervalChange, // Cambiar intervalo con validación
 
     // ─── Handlers (acciones de la vista) ────────────────────

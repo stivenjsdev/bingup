@@ -6,6 +6,16 @@ import { useSoundContext } from '@/app/contexts/SoundContext';
 import { GameData, PlayerData, PlayerNotification, AdminMessage } from '../types';
 import { ACTION_TIMEOUT } from '../constants';
 
+// Normaliza datos del jugador para compatibilidad con documentos antiguos
+// que podrían tener `card`/`markedNumbers` en lugar de `cards`/`markedNumbersPerCard`
+function normalizePlayer(p: any): PlayerData {
+  return {
+    ...p,
+    cards: p.cards ?? (p.card ? [p.card] : []),
+    markedNumbersPerCard: p.markedNumbersPerCard ?? (p.markedNumbers ? [p.markedNumbers] : []),
+  };
+}
+
 // ─── Hook principal de la vista de jugador ────────────────────
 // Centraliza TODA la lógica del jugador: conexión socket, estado
 // del juego, cartón de bingo, marcado de números, acciones
@@ -58,6 +68,7 @@ export function useGamePlay() {
   const [bingoResult, setBingoResult] = useState<'valid' | 'invalid' | null>(null); // Resultado del intento de bingo (alerta temporal)
   const [winnerInfo, setWinnerInfo] = useState<{ playerName: string; round: number } | null>(null); // Información del ganador cuando la partida finaliza
   const [cardAnimating, setCardAnimating] = useState(false); // Animación de cambio de cartón (flip 3D)
+  const [cardsRefreshing, setCardsRefreshing] = useState(false); // Animación de actualización de cantidad de cartones
 
   // ═══════════════════════════════════════════════════════════
   // NOTIFICACIONES — Eventos de otros jugadores y mensajes del admin
@@ -231,7 +242,7 @@ export function useGamePlay() {
     const onReconnected = (data: { role: string; game: GameData; player: PlayerData }) => {
       if (data.role === 'player') {
         setGame(data.game); // Sincronizar estado del juego
-        setPlayer(data.player); // Sincronizar datos del jugador (cartón, marcados)
+        setPlayer(normalizePlayer(data.player)); // Sincronizar datos del jugador (cartón, marcados)
         playerIdRef.current = data.player._id; // Guardar ID para filtrar notificaciones propias
         playerNameRef.current = data.player.name; // Guardar nombre para comparar en onWinner
         setLoading(false); // Ocultar spinner de carga
@@ -303,11 +314,11 @@ export function useGamePlay() {
     };
 
     // ─── Evento: Ronda reiniciada ───────────────────────────
-    // El admin inició una nueva ronda. Se resetea todo: cartón nuevo,
+    // El admin inició una nueva ronda. Se resetea todo: cartones nuevos,
     // números marcados vacíos, sin ganador, sin resultados de bingo.
     const onRestarted = (data: {
       game: GameData;
-      players: { _id: string; name: string; card: number[][]; markedNumbers: number[] }[];
+      players: { _id: string; name: string; cards: number[][][]; markedNumbersPerCard: number[][] }[];
     }) => {
       setGame(data.game); // Nuevo estado del juego (ronda +1, status: 'waiting')
       setLastNumber(null); // Limpiar última balota
@@ -316,10 +327,10 @@ export function useGamePlay() {
       setCallingBingo(false); // Quitar spinner
       bingoLockRef.current = false; // Liberar lock de bingo
       if (bingoTimeoutRef.current) clearTimeout(bingoTimeoutRef.current); // Cancelar timeout
-      // Buscar nuestros datos actualizados en la nueva ronda (nuevo cartón)
+      // Buscar nuestros datos actualizados en la nueva ronda (nuevos cartones)
       const me = data.players.find((p) => p._id === player?._id);
       if (me) {
-        setPlayer(me); // Actualizar cartón y marcados
+        setPlayer(normalizePlayer(me)); // Actualizar cartones y marcados
       }
     };
 
@@ -334,22 +345,57 @@ export function useGamePlay() {
     };
 
     // ─── Evento: Cartón cambiado ────────────────────────────
-    // El servidor envió un nuevo cartón aleatorio. Se anima el cambio
-    // con un efecto de flip 3D (shuffleCard keyframe).
-    const onCardChanged = (data: { card: number[][] }) => {
+    // El servidor envió un nuevo cartón aleatorio para un índice específico.
+    // Se anima el cambio con un efecto de flip 3D (shuffleCard keyframe).
+    const onCardChanged = (data: { card: number[][]; cardIndex: number }) => {
       // Cancelar timeout de seguridad porque recibimos respuesta
       if (changingCardTimeoutRef.current) clearTimeout(changingCardTimeoutRef.current);
       // Activar animación de flip
       setCardAnimating(true);
       soundsRef.current.playCardShuffle(); // Sonido de barajar
-      // Actualizar cartón después de que inicie la animación (250ms delay)
+      // Actualizar cartón específico después de que inicie la animación (250ms delay)
       setTimeout(() => {
-        setPlayer((prev) => (prev ? { ...prev, card: data.card, markedNumbers: [] } : prev));
+        setPlayer((prev) => {
+          if (!prev) return prev;
+          const newCards = [...prev.cards];
+          const newMarked = [...prev.markedNumbersPerCard];
+          newCards[data.cardIndex] = data.card;
+          newMarked[data.cardIndex] = [];
+          return { ...prev, cards: newCards, markedNumbersPerCard: newMarked };
+        });
         setChangingCard(false); // Quitar spinner del botón
         changingCardLockRef.current = false; // Liberar lock
         // Desactivar animación al terminar (300ms más)
         setTimeout(() => setCardAnimating(false), 300);
       }, 250);
+    };
+
+    // ─── Evento: Cartones por jugador actualizados ──────────
+    // El admin cambió la cantidad de cartones por jugador
+    const onCardsPerPlayerUpdated = (data: {
+      game: GameData;
+      players: { _id: string; name: string; cards: number[][][]; markedNumbersPerCard: number[][] }[];
+    }) => {
+      setGame(data.game);
+      const me = data.players.find((p) => p._id === playerIdRef.current);
+      if (me) {
+        const newCount = data.game.cardsPerPlayer || 1;
+        // Notificar al jugador del cambio
+        const msg: AdminMessage = {
+          id: `cards-${Date.now()}`,
+          content: newCount === 1
+            ? 'El administrador cambió a 1 cartón por jugador'
+            : `El administrador cambió a ${newCount} cartones por jugador`,
+        };
+        setAdminMessages((prev) => [...prev, msg].slice(-3));
+        soundsRef.current.playAdminMessage();
+        // Animación de refresh en el contenedor de cartones
+        setCardsRefreshing(true);
+        setTimeout(() => {
+          setPlayer(normalizePlayer(me));
+          setTimeout(() => setCardsRefreshing(false), 400);
+        }, 200);
+      }
     };
 
     // ─── Evento: Mensaje global del administrador ───────────
@@ -407,6 +453,7 @@ export function useGamePlay() {
     socket.on('game:restarted', onRestarted);
     socket.on('game:finished', onFinished);
     socket.on('game:card-changed', onCardChanged);
+    socket.on('game:cards-per-player-updated', onCardsPerPlayerUpdated);
     socket.on('game:players', onPlayers);
     socket.on('game:message', onGameMessage);
     socket.on('game:session-taken', onSessionTaken);
@@ -425,6 +472,7 @@ export function useGamePlay() {
       socket.off('game:restarted', onRestarted);
       socket.off('game:finished', onFinished);
       socket.off('game:card-changed', onCardChanged);
+      socket.off('game:cards-per-player-updated', onCardsPerPlayerUpdated);
       socket.off('game:players', onPlayers);
       socket.off('game:message', onGameMessage);
       socket.off('game:session-taken', onSessionTaken);
@@ -448,25 +496,27 @@ export function useGamePlay() {
   // 6. Programar timeout de seguridad para desbloquear
   // ═══════════════════════════════════════════════════════════
 
-  // Marcar un número en el cartón del jugador.
+  // Marcar un número en un cartón específico del jugador.
   // Solo permite marcar si: el juego está en curso, el número fue cantado,
-  // no es la celda libre (0), y aún no está marcado.
-  // Usa optimistic update: actualiza el estado local inmediatamente
-  // sin esperar confirmación del servidor (mejor UX).
+  // no es la celda libre (0), y aún no está marcado en ese cartón.
   const handleMark = useCallback(
-    (num: number) => {
-      if (!socket || !game || game.status !== 'playing' || num === 0) return; // Validaciones básicas
-      if (!game.calledNumbers.includes(num)) return; // Solo números ya cantados
-      if (player?.markedNumbers.includes(num)) return; // No marcar dos veces
+    (num: number, cardIndex: number) => {
+      if (!socket || !game || game.status !== 'playing' || num === 0) return;
+      if (!game.calledNumbers.includes(num)) return;
+      const markedNums = player?.markedNumbersPerCard[cardIndex] || [];
+      if (markedNums.includes(num)) return;
 
-      socket.emit('game:mark', { gameId, number: num, token: getToken() }); // Enviar al servidor
-      sounds.playMark(); // Sonido de marcar número
+      socket.emit('game:mark', { gameId, number: num, token: getToken(), cardIndex });
+      sounds.playMark();
       // Optimistic update: actualizar localmente sin esperar respuesta
-      setPlayer((prev) =>
-        prev ? { ...prev, markedNumbers: [...prev.markedNumbers, num] } : prev,
-      );
+      setPlayer((prev) => {
+        if (!prev) return prev;
+        const newMarked = [...prev.markedNumbersPerCard];
+        newMarked[cardIndex] = [...(newMarked[cardIndex] || []), num];
+        return { ...prev, markedNumbersPerCard: newMarked };
+      });
     },
-    [socket, game, player?.markedNumbers, gameId, getToken, sounds],
+    [socket, game, player?.markedNumbersPerCard, gameId, getToken, sounds],
   );
 
   // Cantar ¡BINGO! — Envía el intento al servidor para validación.
@@ -487,21 +537,22 @@ export function useGamePlay() {
     }, ACTION_TIMEOUT);
   }, [socket, callingBingo, gameId, getToken, sounds]);
 
-  // Cambiar cartón — Solo disponible en estado "waiting" (antes de iniciar).
-  // Pide al servidor un nuevo cartón aleatorio. Sigue el mismo patrón
-  // de lock + timeout que handleBingo.
-  const handleChangeCard = useCallback(() => {
-    if (!socket || changingCardLockRef.current || changingCard || game?.status !== 'waiting') return;
-    changingCardLockRef.current = true; // Bloquear inmediatamente
-    setChangingCard(true); // Activar spinner
-    socket.emit('game:change-card', { gameId, token: getToken() }); // Pedir nuevo cartón
+  // Cambiar un cartón específico — Solo disponible en estado "waiting".
+  // Pide al servidor un nuevo cartón aleatorio para el índice dado.
+  const handleChangeCard = useCallback(
+    (cardIndex: number) => {
+      if (!socket || changingCardLockRef.current || changingCard || game?.status !== 'waiting') return;
+      changingCardLockRef.current = true;
+      setChangingCard(true);
+      socket.emit('game:change-card', { gameId, token: getToken(), cardIndex });
 
-    // Timeout de seguridad: liberar lock si no hay respuesta
-    changingCardTimeoutRef.current = setTimeout(() => {
-      changingCardLockRef.current = false;
-      setChangingCard(false);
-    }, ACTION_TIMEOUT);
-  }, [socket, changingCard, game?.status, gameId, getToken]);
+      changingCardTimeoutRef.current = setTimeout(() => {
+        changingCardLockRef.current = false;
+        setChangingCard(false);
+      }, ACTION_TIMEOUT);
+    },
+    [socket, changingCard, game?.status, gameId, getToken],
+  );
 
   // Cerrar una notificación de jugador (join/leave/reconnect)
   // Filtra la notificación por su ID único de la cola
@@ -549,6 +600,7 @@ export function useGamePlay() {
     bingoResult, // Resultado del intento de bingo ('valid' | 'invalid' | null)
     winnerInfo, // Info del ganador ({ playerName, round } | null)
     cardAnimating, // Animación de cambio de cartón
+    cardsRefreshing, // Animación de actualización de cantidad de cartones
     notifications, // Cola de notificaciones de jugadores
     adminMessages, // Cola de mensajes del administrador
 

@@ -73,6 +73,13 @@ const gameSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    // Cantidad de cartones por jugador (definido por el admin)
+    cardsPerPlayer: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 10,
+    },
     calledNumbers: {
       type: [Number],
       default: [],

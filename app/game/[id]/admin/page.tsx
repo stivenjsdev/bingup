@@ -18,6 +18,7 @@ import {
   Fade,
   Grow,
   Zoom,
+  Stack,
 } from '@mui/material';
 import CasinoIcon from '@mui/icons-material/Casino';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -90,6 +91,10 @@ export default function AdminPage() {
     autoDraw,
     autoDrawInterval,
     handleAutoDrawIntervalChange,
+    cardsPerPlayer,
+    applyingCards,
+    handleCardsPerPlayerChange,
+    applyCardsPerPlayer,
     handleStart,
     handleDraw,
     handleRestart,
@@ -105,7 +110,9 @@ export default function AdminPage() {
         <S.CenteredFullHeight>
           <S.CenteredStack>
             <CircularProgress size={48} />
-            <Typography color="text.secondary">Conectando a la partida...</Typography>
+            <Typography color="text.secondary">
+              Conectando a la partida...
+            </Typography>
           </S.CenteredStack>
         </S.CenteredFullHeight>
       </S.PageWrapper>
@@ -118,7 +125,10 @@ export default function AdminPage() {
         <S.CenteredFullHeight>
           <S.CenteredStack>
             <S.FullWidthAlert severity="error">{error}</S.FullWidthAlert>
-            <Button startIcon={<HomeIcon />} onClick={goHome}>
+            <Button
+              startIcon={<HomeIcon />}
+              onClick={goHome}
+            >
               Volver al inicio
             </Button>
           </S.CenteredStack>
@@ -144,7 +154,10 @@ export default function AdminPage() {
     <S.PageWrapper maxWidth="md">
       <S.PageContainer>
         {/* Header */}
-        <Fade in timeout={600}>
+        <Fade
+          in
+          timeout={600}
+        >
           <S.HeaderCard variant="outlined">
             <S.HeaderCardContent>
               <S.HeaderTopRow>
@@ -152,23 +165,48 @@ export default function AdminPage() {
                   <S.HeaderGameIcon as={CasinoIcon} />
                   <S.HeaderTitle variant="h5">{game.name}</S.HeaderTitle>
                   <Tooltip title="Volver al inicio">
-                    <S.HeaderHomeButton onClick={goHome} size="small">
+                    <S.HeaderHomeButton
+                      onClick={goHome}
+                      size="small"
+                    >
                       <HomeIcon />
                     </S.HeaderHomeButton>
                   </Tooltip>
                 </S.HeaderLeftGroup>
                 <S.HeaderRightGroup>
-                  <Tooltip title={soundEnabled ? 'Silenciar sonidos' : 'Activar sonidos'}>
-                    <S.HeaderIconButton onClick={toggleSound} size="small" active={soundEnabled}>
-                      {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                  <Tooltip
+                    title={
+                      soundEnabled ? 'Silenciar sonidos' : 'Activar sonidos'
+                    }
+                  >
+                    <S.HeaderIconButton
+                      onClick={toggleSound}
+                      size="small"
+                      active={soundEnabled}
+                    >
+                      {soundEnabled ? (
+                        <VolumeUpIcon fontSize="small" />
+                      ) : (
+                        <VolumeOffIcon fontSize="small" />
+                      )}
                     </S.HeaderIconButton>
                   </Tooltip>
-                  <Tooltip title={isConnected ? 'Conectado' : isReconnecting ? 'Reconectando...' : 'Desconectado'}>
+                  <Tooltip
+                    title={
+                      isConnected
+                        ? 'Conectado'
+                        : isReconnecting
+                          ? 'Reconectando...'
+                          : 'Desconectado'
+                    }
+                  >
                     <S.ConnectionBadge status={connectionStatus}>
                       {isConnected ? (
                         <WifiIcon fontSize="small" />
                       ) : isReconnecting ? (
-                        <S.SpinningIcon><RefreshIcon fontSize="small" /></S.SpinningIcon>
+                        <S.SpinningIcon>
+                          <RefreshIcon fontSize="small" />
+                        </S.SpinningIcon>
                       ) : (
                         <WifiOffIcon fontSize="small" />
                       )}
@@ -177,11 +215,24 @@ export default function AdminPage() {
                 </S.HeaderRightGroup>
               </S.HeaderTopRow>
               <S.HeaderChipsRow>
-                <S.StatusChip label={statusInfo.label} color={statusInfo.color} size="small" />
-                <S.HeaderChip label={`Ronda ${game.round}`} size="small" variant="outlined" />
+                <S.StatusChip
+                  label={statusInfo.label}
+                  color={statusInfo.color}
+                  size="small"
+                />
+                <S.HeaderChip
+                  label={`Ronda ${game.round}`}
+                  size="small"
+                  variant="outlined"
+                />
                 <S.HeaderChip
                   icon={<CategoryIcon sx={{ fontSize: 14 }} />}
                   label={GAME_TYPE_LABELS[game.type] || game.type}
+                  size="small"
+                  variant="outlined"
+                />
+                <S.HeaderChip
+                  label={`${game.cardsPerPlayer || 1} cartón${(game.cardsPerPlayer || 1) > 1 ? 'es' : ''}`}
                   size="small"
                   variant="outlined"
                 />
@@ -191,17 +242,33 @@ export default function AdminPage() {
         </Fade>
 
         {/* Código de sala */}
-        <Fade in timeout={600} style={{ transitionDelay: '100ms' }}>
+        <Fade
+          in
+          timeout={600}
+          style={{ transitionDelay: '100ms' }}
+        >
           <S.RoomCodeCard variant="outlined">
             <S.RoomCodeCardContent>
               <S.RoomCodeRow>
                 <S.RoomCodeLeft>
-                  <TagIcon fontSize="small" color="action" sx={{ flexShrink: 0 }} />
+                  <TagIcon
+                    fontSize="small"
+                    color="action"
+                    sx={{ flexShrink: 0 }}
+                  />
                   <S.RoomCodeText variant="body2">{gameId}</S.RoomCodeText>
                 </S.RoomCodeLeft>
                 <Tooltip title={copied ? '¡Copiado!' : 'Copiar código'}>
-                  <S.CopyButton size="small" onClick={handleCopyCode} color={copied ? 'success' : 'default'}>
-                    {copied ? <CheckCircleIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+                  <S.CopyButton
+                    size="small"
+                    onClick={handleCopyCode}
+                    color={copied ? 'success' : 'default'}
+                  >
+                    {copied ? (
+                      <CheckCircleIcon fontSize="small" />
+                    ) : (
+                      <ContentCopyIcon fontSize="small" />
+                    )}
                   </S.CopyButton>
                 </Tooltip>
               </S.RoomCodeRow>
@@ -211,7 +278,10 @@ export default function AdminPage() {
 
         {/* Alerta de error de acción */}
         <Collapse in={!!actionError}>
-          <S.SpacedAlert severity="warning" onClose={() => setActionError('')}>
+          <S.SpacedAlert
+            severity="warning"
+            onClose={() => setActionError('')}
+          >
             {actionError}
           </S.SpacedAlert>
         </Collapse>
@@ -234,14 +304,21 @@ export default function AdminPage() {
             severity={isReconnecting ? 'warning' : 'error'}
             icon={
               isReconnecting ? (
-                <S.SpinningIcon><RefreshIcon /></S.SpinningIcon>
+                <S.SpinningIcon>
+                  <RefreshIcon />
+                </S.SpinningIcon>
               ) : (
                 <WifiOffIcon />
               )
             }
             action={
               reconnectFailed && !isReconnecting ? (
-                <Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={manualReconnect}>
+                <Button
+                  color="inherit"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={manualReconnect}
+                >
                   Reintentar
                 </Button>
               ) : null
@@ -259,7 +336,10 @@ export default function AdminPage() {
           {/* Columna izquierda: Controles + Jugadores */}
           <S.LeftColumn>
             {/* Controles del juego */}
-            <Grow in timeout={500}>
+            <Grow
+              in
+              timeout={500}
+            >
               <S.ControlsCard variant="outlined">
                 <CardContent>
                   <S.SectionHeader>
@@ -270,16 +350,51 @@ export default function AdminPage() {
                   {/* Estado: Esperando */}
                   {game.status === 'waiting' && (
                     <S.ControlsStack>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                      >
                         {onlinePlayers.length === 0
                           ? 'Esperando jugadores para iniciar...'
                           : `${onlinePlayers.length} jugador${onlinePlayers.length > 1 ? 'es' : ''} listo${onlinePlayers.length > 1 ? 's' : ''}`}
                       </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                          Cartones por jugador:
+                        </Typography>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={cardsPerPlayer}
+                          onChange={(e) => handleCardsPerPlayerChange(Number(e.target.value))}
+                          onFocus={(e) => e.target.select()}
+                          slotProps={{ htmlInput: { min: 1, max: 10 } }}
+                          sx={{ width: 80 }}
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={applyCardsPerPlayer}
+                          disabled={applyingCards || cardsPerPlayer === (game.cardsPerPlayer || 1)}
+                          startIcon={applyingCards ? <CircularProgress size={14} color="inherit" /> : undefined}
+                        >
+                          {applyingCards ? 'Aplicando...' : 'Aplicar'}
+                        </Button>
+                      </Stack>
                       <S.ActionButton
                         variant="contained"
                         size="large"
                         fullWidth
-                        startIcon={starting ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
+                        startIcon={
+                          starting ? (
+                            <CircularProgress
+                              size={20}
+                              color="inherit"
+                            />
+                          ) : (
+                            <PlayArrowIcon />
+                          )
+                        }
                         onClick={handleStart}
                         disabled={players.length === 0 || starting}
                       >
@@ -293,15 +408,30 @@ export default function AdminPage() {
                     <S.PlayingStack>
                       {/* Última balota */}
                       {lastNumber !== null && (
-                        <Zoom in key={lastNumber}>
-                          <S.BallPaper elevation={4} ballColor={getColumnForNumber(lastNumber)?.color || '#1976d2'}>
-                            <S.BallLetter variant="caption">{getColumnForNumber(lastNumber)?.letter}</S.BallLetter>
-                            <S.BallNumber variant="h3">{lastNumber}</S.BallNumber>
+                        <Zoom
+                          in
+                          key={lastNumber}
+                        >
+                          <S.BallPaper
+                            elevation={4}
+                            ballColor={
+                              getColumnForNumber(lastNumber)?.color || '#1976d2'
+                            }
+                          >
+                            <S.BallLetter variant="caption">
+                              {getColumnForNumber(lastNumber)?.letter}
+                            </S.BallLetter>
+                            <S.BallNumber variant="h3">
+                              {lastNumber}
+                            </S.BallNumber>
                           </S.BallPaper>
                         </Zoom>
                       )}
 
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                      >
                         {game.calledNumbers.length} de 75 balotas cantadas
                       </Typography>
 
@@ -309,7 +439,16 @@ export default function AdminPage() {
                         variant="contained"
                         size="large"
                         fullWidth
-                        startIcon={drawing ? <CircularProgress size={20} color="inherit" /> : <RadioButtonCheckedIcon />}
+                        startIcon={
+                          drawing ? (
+                            <CircularProgress
+                              size={20}
+                              color="inherit"
+                            />
+                          ) : (
+                            <RadioButtonCheckedIcon />
+                          )
+                        }
                         onClick={handleDraw}
                         disabled={drawing}
                       >
@@ -323,7 +462,10 @@ export default function AdminPage() {
                           size="small"
                           label="Segundos"
                           value={autoDrawInterval}
-                          onChange={(e) => handleAutoDrawIntervalChange(e.target.value)}
+                          onChange={(e) =>
+                            handleAutoDrawIntervalChange(e.target.value)
+                          }
+                          onFocus={(e) => e.target.select()}
                           disabled={autoDraw}
                           slotProps={{ htmlInput: { min: 1, max: 60 } }}
                         />
@@ -331,7 +473,9 @@ export default function AdminPage() {
                           variant={autoDraw ? 'contained' : 'outlined'}
                           color={autoDraw ? 'warning' : 'primary'}
                           fullWidth
-                          startIcon={autoDraw ? <PauseCircleIcon /> : <TimerIcon />}
+                          startIcon={
+                            autoDraw ? <PauseCircleIcon /> : <TimerIcon />
+                          }
                           onClick={toggleAutoDraw}
                         >
                           {autoDraw ? 'Detener auto' : 'Auto balota'}
@@ -353,18 +497,32 @@ export default function AdminPage() {
 
                       <Collapse in={showFinish}>
                         <S.ConfirmStack>
-                          <S.SpacedAlert severity="warning" variant="outlined">
+                          <S.SpacedAlert
+                            severity="warning"
+                            variant="outlined"
+                          >
                             Esto finalizará la ronda sin ganador. ¿Estás seguro?
                           </S.SpacedAlert>
                           <Button
                             variant="contained"
                             color="error"
-                            startIcon={finishing ? <CircularProgress size={20} color="inherit" /> : <StopCircleIcon />}
+                            startIcon={
+                              finishing ? (
+                                <CircularProgress
+                                  size={20}
+                                  color="inherit"
+                                />
+                              ) : (
+                                <StopCircleIcon />
+                              )
+                            }
                             onClick={handleFinish}
                             disabled={finishing}
                             fullWidth
                           >
-                            {finishing ? 'Finalizando...' : 'Confirmar finalización'}
+                            {finishing
+                              ? 'Finalizando...'
+                              : 'Confirmar finalización'}
                           </Button>
                         </S.ConfirmStack>
                       </Collapse>
@@ -374,7 +532,10 @@ export default function AdminPage() {
                   {/* Estado: Finalizada */}
                   {game.status === 'finished' && (
                     <S.ControlsStack>
-                      <S.SpacedAlert severity="success" icon={<EmojiEventsIcon />}>
+                      <S.SpacedAlert
+                        severity="success"
+                        icon={<EmojiEventsIcon />}
+                      >
                         ¡Ronda {game.round} finalizada!
                       </S.SpacedAlert>
 
@@ -399,14 +560,20 @@ export default function AdminPage() {
                               input: {
                                 startAdornment: (
                                   <InputAdornment position="start">
-                                    <CategoryIcon fontSize="small" color="action" />
+                                    <CategoryIcon
+                                      fontSize="small"
+                                      color="action"
+                                    />
                                   </InputAdornment>
                                 ),
                               },
                             }}
                           >
                             {GAME_TYPES.map((opt) => (
-                              <MenuItem key={opt.value} value={opt.value}>
+                              <MenuItem
+                                key={opt.value}
+                                value={opt.value}
+                              >
                                 {opt.label}
                               </MenuItem>
                             ))}
@@ -414,12 +581,23 @@ export default function AdminPage() {
                           <Button
                             variant="contained"
                             color="success"
-                            startIcon={restarting ? <CircularProgress size={20} color="inherit" /> : <RestartAltIcon />}
+                            startIcon={
+                              restarting ? (
+                                <CircularProgress
+                                  size={20}
+                                  color="inherit"
+                                />
+                              ) : (
+                                <RestartAltIcon />
+                              )
+                            }
                             onClick={handleRestart}
                             disabled={!restartType || restarting}
                             fullWidth
                           >
-                            {restarting ? 'Iniciando...' : `Iniciar ronda ${game.round + 1}`}
+                            {restarting
+                              ? 'Iniciando...'
+                              : `Iniciar ronda ${game.round + 1}`}
                           </Button>
                         </S.RestartOptionsStack>
                       </Collapse>
@@ -429,64 +607,12 @@ export default function AdminPage() {
               </S.ControlsCard>
             </Grow>
 
-            {/* Jugadores */}
-            <Grow in timeout={500} style={{ transitionDelay: '100ms' }}>
-              <S.HoverCard variant="outlined">
-                <CardContent>
-                  <S.PlayersHeaderRow>
-                    <S.PlayersLeftGroup>
-                      <GroupIcon color="primary" />
-                      <Typography variant="h6">Jugadores</Typography>
-                    </S.PlayersLeftGroup>
-                    <S.PlayersBadgesGroup>
-                      <S.OnlineChip
-                        icon={<FiberManualRecordIcon sx={{ fontSize: 10 }} />}
-                        label={onlinePlayers.length}
-                        size="small"
-                        color="success"
-                        variant="outlined"
-                      />
-                      <S.StatusChip label={players.length} size="small" color="primary" />
-                    </S.PlayersBadgesGroup>
-                  </S.PlayersHeaderRow>
-
-                  {players.length === 0 ? (
-                    <S.EmptyPlayersText variant="body2" color="text.disabled">
-                      Aún no hay jugadores
-                    </S.EmptyPlayersText>
-                  ) : (
-                    <List disablePadding>
-                      {players.map((p, i) => (
-                        <Fade in timeout={300} style={{ transitionDelay: `${i * 50}ms` }} key={p._id}>
-                          <S.PlayerListItem disablePadding>
-                            <S.PlayerIconCell>
-                              <S.PlayerBadge
-                                overlap="circular"
-                                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                                variant="dot"
-                                online={p.online}
-                              >
-                                <S.PlayerAvatar index={i} online={p.online}>
-                                  {p.name.charAt(0).toUpperCase()}
-                                </S.PlayerAvatar>
-                              </S.PlayerBadge>
-                            </S.PlayerIconCell>
-                            <S.PlayerStatusText
-                              primary={p.name}
-                              secondary={p.online ? 'Conectado' : 'Desconectado'}
-                              online={p.online}
-                            />
-                          </S.PlayerListItem>
-                        </Fade>
-                      ))}
-                    </List>
-                  )}
-                </CardContent>
-              </S.HoverCard>
-            </Grow>
-
             {/* Mensaje global */}
-            <Grow in timeout={500} style={{ transitionDelay: '150ms' }}>
+            <Grow
+              in
+              timeout={500}
+              style={{ transitionDelay: '150ms' }}
+            >
               <S.HoverCard variant="outlined">
                 <CardContent>
                   <S.SectionHeaderMedium>
@@ -509,7 +635,9 @@ export default function AdminPage() {
                       disabled={sendingMessage}
                       slotProps={{ htmlInput: { maxLength: 500 } }}
                     />
-                    <Tooltip title={messageSent ? '¡Enviado!' : 'Enviar mensaje'}>
+                    <Tooltip
+                      title={messageSent ? '¡Enviado!' : 'Enviar mensaje'}
+                    >
                       <span>
                         <IconButton
                           color={messageSent ? 'success' : 'primary'}
@@ -517,7 +645,10 @@ export default function AdminPage() {
                           disabled={sendingMessage || !messageText.trim()}
                         >
                           {sendingMessage ? (
-                            <CircularProgress size={20} color="inherit" />
+                            <CircularProgress
+                              size={20}
+                              color="inherit"
+                            />
                           ) : messageSent ? (
                             <CheckCircleIcon />
                           ) : (
@@ -531,9 +662,93 @@ export default function AdminPage() {
               </S.HoverCard>
             </Grow>
 
+            {/* Jugadores */}
+            <Grow
+              in
+              timeout={500}
+              style={{ transitionDelay: '100ms' }}
+            >
+              <S.HoverCard variant="outlined">
+                <CardContent>
+                  <S.PlayersHeaderRow>
+                    <S.PlayersLeftGroup>
+                      <GroupIcon color="primary" />
+                      <Typography variant="h6">Jugadores</Typography>
+                    </S.PlayersLeftGroup>
+                    <S.PlayersBadgesGroup>
+                      <S.OnlineChip
+                        icon={<FiberManualRecordIcon sx={{ fontSize: 10 }} />}
+                        label={onlinePlayers.length}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                      <S.StatusChip
+                        label={players.length}
+                        size="small"
+                        color="primary"
+                      />
+                    </S.PlayersBadgesGroup>
+                  </S.PlayersHeaderRow>
+
+                  {players.length === 0 ? (
+                    <S.EmptyPlayersText
+                      variant="body2"
+                      color="text.disabled"
+                    >
+                      Aún no hay jugadores
+                    </S.EmptyPlayersText>
+                  ) : (
+                    <List disablePadding>
+                      {players.map((p, i) => (
+                        <Fade
+                          in
+                          timeout={300}
+                          style={{ transitionDelay: `${i * 50}ms` }}
+                          key={p._id}
+                        >
+                          <S.PlayerListItem disablePadding>
+                            <S.PlayerIconCell>
+                              <S.PlayerBadge
+                                overlap="circular"
+                                anchorOrigin={{
+                                  vertical: 'bottom',
+                                  horizontal: 'right',
+                                }}
+                                variant="dot"
+                                online={p.online}
+                              >
+                                <S.PlayerAvatar
+                                  index={i}
+                                  online={p.online}
+                                >
+                                  {p.name.charAt(0).toUpperCase()}
+                                </S.PlayerAvatar>
+                              </S.PlayerBadge>
+                            </S.PlayerIconCell>
+                            <S.PlayerStatusText
+                              primary={p.name}
+                              secondary={
+                                p.online ? 'Conectado' : 'Desconectado'
+                              }
+                              online={p.online}
+                            />
+                          </S.PlayerListItem>
+                        </Fade>
+                      ))}
+                    </List>
+                  )}
+                </CardContent>
+              </S.HoverCard>
+            </Grow>
+
             {/* Ganadores */}
             {game.winners.length > 0 && (
-              <Grow in timeout={500} style={{ transitionDelay: '200ms' }}>
+              <Grow
+                in
+                timeout={500}
+                style={{ transitionDelay: '200ms' }}
+              >
                 <S.WinnersCard variant="outlined">
                   <CardContent>
                     <S.SectionHeaderCompact>
@@ -542,11 +757,17 @@ export default function AdminPage() {
                     </S.SectionHeaderCompact>
                     <List disablePadding>
                       {game.winners.map((w, i) => (
-                        <S.WinnerListItem key={i} disablePadding>
+                        <S.WinnerListItem
+                          key={i}
+                          disablePadding
+                        >
                           <S.WinnerIconCell>
                             <S.WinnerAvatar>{i + 1}</S.WinnerAvatar>
                           </S.WinnerIconCell>
-                          <ListItemText primary={w.playerName} secondary={`Ronda ${w.round}`} />
+                          <ListItemText
+                            primary={w.playerName}
+                            secondary={`Ronda ${w.round}`}
+                          />
                         </S.WinnerListItem>
                       ))}
                     </List>
@@ -557,7 +778,11 @@ export default function AdminPage() {
           </S.LeftColumn>
 
           {/* Columna derecha: Tablero de números */}
-          <Grow in timeout={500} style={{ transitionDelay: '150ms' }}>
+          <Grow
+            in
+            timeout={500}
+            style={{ transitionDelay: '150ms' }}
+          >
             <S.BoardCard variant="outlined">
               <CardContent>
                 <S.SectionHeader>
@@ -569,7 +794,10 @@ export default function AdminPage() {
                   {BINGO_COLUMNS.map((col) => (
                     <Box key={col.letter}>
                       <S.ColumnHeaderRow>
-                        <S.ColumnLabel variant="subtitle2" labelColor={col.color}>
+                        <S.ColumnLabel
+                          variant="subtitle2"
+                          labelColor={col.color}
+                        >
                           {col.letter}
                         </S.ColumnLabel>
                         <S.ColumnDivider />
@@ -582,7 +810,12 @@ export default function AdminPage() {
                           const isCalled = game.calledNumbers.includes(num);
                           const isLast = num === lastNumber;
                           return (
-                            <S.BoardBall key={num} called={isCalled} last={isLast} ballColor={col.color}>
+                            <S.BoardBall
+                              key={num}
+                              called={isCalled}
+                              last={isLast}
+                              ballColor={col.color}
+                            >
                               {num}
                             </S.BoardBall>
                           );

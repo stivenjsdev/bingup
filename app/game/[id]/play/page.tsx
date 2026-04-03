@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   Typography,
   CircularProgress,
@@ -32,6 +33,8 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import CampaignIcon from '@mui/icons-material/Campaign';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useGamePlay } from './hooks/useGamePlay';
 import {
   BINGO_LETTERS,
@@ -83,6 +86,7 @@ export default function PlayPage() {
     bingoResult,
     winnerInfo,
     cardAnimating,
+    cardsRefreshing,
     notifications,
     adminMessages,
     handleMark,
@@ -91,6 +95,32 @@ export default function PlayPage() {
     handleCloseNotification,
     handleCloseAdminMessage,
   } = useGamePlay();
+
+  // ─── Scroll horizontal de cartones ──────────────────────────
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollLeft = el.scrollLeft;
+    const cardWidth = el.scrollWidth / (player?.cards.length || 1);
+    setActiveCardIndex(Math.round(scrollLeft / cardWidth));
+  }, [player?.cards.length]);
+
+  const scrollToCard = useCallback((index: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cardWidth = el.scrollWidth / (player?.cards.length || 1);
+    el.scrollTo({ left: cardWidth * index, behavior: 'smooth' });
+  }, [player?.cards.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   if (loading) {
     return (
@@ -238,17 +268,10 @@ export default function PlayPage() {
                   />
                   <WinPatternPreview gameType={game.type} />
                   <S.WaitingHint variant="body2" color="text.secondary">
-                    Mientras tanto, revisa tu cartón abajo
+                    {player.cards.length > 1
+                      ? `Tienes ${player.cards.length} cartones. Puedes cambiar cada uno abajo`
+                      : 'Mientras tanto, revisa tu cartón abajo'}
                   </S.WaitingHint>
-                  <S.ChangeCardButton
-                    variant="outlined"
-                    color="warning"
-                    startIcon={changingCard ? <CircularProgress size={18} color="inherit" /> : <AutorenewIcon />}
-                    onClick={handleChangeCard}
-                    disabled={changingCard}
-                  >
-                    {changingCard ? 'Cambiando...' : 'Cambiar cartón'}
-                  </S.ChangeCardButton>
                 </S.WaitingStack>
               </S.WaitingCardContent>
             </S.WaitingCard>
@@ -291,7 +314,7 @@ export default function PlayPage() {
                     color="success"
                     size="large"
                     onClick={handleBingo}
-                    disabled={callingBingo || player.markedNumbers.length === 0}
+                    disabled={callingBingo || player.markedNumbersPerCard.every(m => m.length === 0)}
                   >
                     {callingBingo ? <CircularProgress size={24} color="inherit" /> : '¡BINGO!'}
                   </S.BingoButton>
@@ -344,75 +367,121 @@ export default function PlayPage() {
           </Grow>
         )}
 
-        {/* Cartón de bingo */}
-        <Grow in timeout={600} style={{ transitionDelay: '150ms' }}>
-          <S.BingoCardOuter variant="outlined">
-            <S.BingoCardContent>
-              <S.BingoCardHeaderRow>
-                <S.BingoCardTitleGroup>
-                  <GridViewIcon color="primary" />
-                  <Typography variant="h6">Mi cartón</Typography>
-                </S.BingoCardTitleGroup>
-                <WinPatternPreview gameType={game.type} />
-              </S.BingoCardHeaderRow>
+        {/* Cartones de bingo */}
+        <S.CardsNavWrapper>
+          {player.cards.length > 1 && activeCardIndex > 0 && (
+            <S.CardsArrowButton
+              size="small"
+              onClick={() => scrollToCard(activeCardIndex - 1)}
+              sx={{ left: -4 }}
+            >
+              <ChevronLeftIcon />
+            </S.CardsArrowButton>
+          )}
+          <S.CardsScrollContainer ref={scrollRef} refreshing={cardsRefreshing}>
+            {player.cards.map((card, cardIndex) => (
+              <S.BingoCardOuter variant="outlined" key={cardIndex}>
+                <S.BingoCardContent>
+                  <S.BingoCardHeaderRow>
+                    <S.BingoCardTitleGroup>
+                      <GridViewIcon color="primary" />
+                      <Typography variant="h6">
+                        {player.cards.length > 1 ? `Cartón ${cardIndex + 1}` : 'Mi cartón'}
+                      </Typography>
+                    </S.BingoCardTitleGroup>
+                    <WinPatternPreview gameType={game.type} />
+                  </S.BingoCardHeaderRow>
 
-              {/* Header B-I-N-G-O */}
-              <S.BingoLettersGrid>
-                {BINGO_LETTERS.map((letter, i) => (
-                  <S.BingoLetterCell key={letter} bgColor={BINGO_COLUMN_COLORS[i]}>
-                    {letter}
-                  </S.BingoLetterCell>
-                ))}
-              </S.BingoLettersGrid>
+                  {(game.status === 'waiting') && (
+                    <S.ChangeCardButton
+                      variant="outlined"
+                      color="warning"
+                      size="small"
+                      fullWidth
+                      startIcon={changingCard ? <CircularProgress size={14} color="inherit" /> : <AutorenewIcon />}
+                      onClick={() => handleChangeCard(cardIndex)}
+                      disabled={changingCard}
+                      sx={{ mb: 2 }}
+                    >
+                      {changingCard ? 'Cambiando...' : 'Cambiar cartón'}
+                    </S.ChangeCardButton>
+                  )}
 
-              {/* Celdas del cartón (5 filas x 5 columnas) */}
-              <S.BingoCellsGrid animating={cardAnimating}>
-                {player.card.map((row, rowIdx) =>
-                  row.map((num, colIdx) => {
-                    const isFree = num === 0;
-                    const isCalled = isFree || game.calledNumbers.includes(num);
-                    const isMarked = isFree || player.markedNumbers.includes(num);
-                    const canMark = isPlaying && isCalled && !isMarked && !isFree;
+                  {/* Header B-I-N-G-O */}
+                  <S.BingoLettersGrid>
+                    {BINGO_LETTERS.map((letter, i) => (
+                      <S.BingoLetterCell key={letter} bgColor={BINGO_COLUMN_COLORS[i]}>
+                        {letter}
+                      </S.BingoLetterCell>
+                    ))}
+                  </S.BingoLettersGrid>
 
-                    return (
-                      <S.BingoCell
-                        key={`${rowIdx}-${colIdx}`}
-                        onClick={() => canMark && handleMark(num)}
-                        isFree={isFree}
-                        isMarked={isMarked}
-                        isCalled={isCalled}
-                        canMark={canMark}
-                        isPlaying={isPlaying}
-                        colColor={BINGO_COLUMN_COLORS[colIdx]}
-                      >
-                        {isFree ? '★' : num}
-                        {isMarked && !isFree && (
-                          <S.CellCheckIcon as={CheckCircleIcon} />
-                        )}
-                      </S.BingoCell>
-                    );
-                  })
-                )}
-              </S.BingoCellsGrid>
+                  {/* Celdas del cartón (5 filas x 5 columnas) */}
+                  <S.BingoCellsGrid animating={cardAnimating}>
+                    {card.map((row, rowIdx) =>
+                      row.map((num, colIdx) => {
+                        const isFree = num === 0;
+                        const isCalled = isFree || game.calledNumbers.includes(num);
+                        const isMarked = isFree || (player.markedNumbersPerCard[cardIndex] || []).includes(num);
+                        const canMark = isPlaying && isCalled && !isMarked && !isFree;
 
-              {/* Leyenda */}
-              <S.LegendRow>
-                <S.LegendItem>
-                  <S.LegendDotMarked />
-                  <S.LegendLabel variant="caption" color="text.secondary">Marcado</S.LegendLabel>
-                </S.LegendItem>
-                <S.LegendItem>
-                  <S.LegendDotCalled />
-                  <S.LegendLabel variant="caption" color="text.secondary">Cantado</S.LegendLabel>
-                </S.LegendItem>
-                <S.LegendItem>
-                  <S.LegendDotUncalled />
-                  <S.LegendLabel variant="caption" color="text.secondary">Sin cantar</S.LegendLabel>
-                </S.LegendItem>
-              </S.LegendRow>
-            </S.BingoCardContent>
-          </S.BingoCardOuter>
-        </Grow>
+                        return (
+                          <S.BingoCell
+                            key={`${rowIdx}-${colIdx}`}
+                            onClick={() => canMark && handleMark(num, cardIndex)}
+                            isFree={isFree}
+                            isMarked={isMarked}
+                            isCalled={isCalled}
+                            canMark={canMark}
+                            isPlaying={isPlaying}
+                            colColor={BINGO_COLUMN_COLORS[colIdx]}
+                          >
+                            {isFree ? '★' : num}
+                            {isMarked && !isFree && (
+                              <S.CellCheckIcon as={CheckCircleIcon} />
+                            )}
+                          </S.BingoCell>
+                        );
+                      })
+                    )}
+                  </S.BingoCellsGrid>
+
+                  {/* Leyenda */}
+                  <S.LegendRow>
+                    <S.LegendItem>
+                      <S.LegendDotMarked />
+                      <S.LegendLabel variant="caption" color="text.secondary">Marcado</S.LegendLabel>
+                    </S.LegendItem>
+                    <S.LegendItem>
+                      <S.LegendDotCalled />
+                      <S.LegendLabel variant="caption" color="text.secondary">Cantado</S.LegendLabel>
+                    </S.LegendItem>
+                    <S.LegendItem>
+                      <S.LegendDotUncalled />
+                      <S.LegendLabel variant="caption" color="text.secondary">Sin cantar</S.LegendLabel>
+                    </S.LegendItem>
+                  </S.LegendRow>
+                </S.BingoCardContent>
+              </S.BingoCardOuter>
+            ))}
+          </S.CardsScrollContainer>
+          {player.cards.length > 1 && activeCardIndex < player.cards.length - 1 && (
+            <S.CardsArrowButton
+              size="small"
+              onClick={() => scrollToCard(activeCardIndex + 1)}
+              sx={{ right: -4 }}
+            >
+              <ChevronRightIcon />
+            </S.CardsArrowButton>
+          )}
+        </S.CardsNavWrapper>
+        {player.cards.length > 1 && (
+          <S.CardsDots>
+            {player.cards.map((_, i) => (
+              <S.CardDot key={i} active={i === activeCardIndex} onClick={() => scrollToCard(i)} />
+            ))}
+          </S.CardsDots>
+        )}
 
         {/* Footer */}
         <Fade in timeout={1000} style={{ transitionDelay: '400ms' }}>

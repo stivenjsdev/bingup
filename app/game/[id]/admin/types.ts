@@ -5,6 +5,7 @@ export interface GameData {
   status: string;
   round: number;
   calledNumbers: number[];
+  cardsPerPlayer: number;
   winners: { playerName: string; round: number; wonAt: string }[];
   createdAt: string;
 }

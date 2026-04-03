@@ -23,12 +23,14 @@ const playerSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    card: {
-      type: [[Number]],
+    // Array de cartones del jugador (cada uno es una matriz 5x5)
+    cards: {
+      type: [[[Number]]],
       required: true,
     },
-    markedNumbers: {
-      type: [Number],
+    // Números marcados por cartón (índice corresponde al cartón)
+    markedNumbersPerCard: {
+      type: [[Number]],
       default: [],
     },
     // Estado de conexión del jugador

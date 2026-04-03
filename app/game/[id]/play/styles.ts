@@ -51,6 +51,13 @@ export const shuffleCard = keyframes`
   100% { transform: perspective(600px) rotateY(0deg); opacity: 1; }
 `;
 
+export const cardsRefresh = keyframes`
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(0.95); opacity: 0.4; }
+  60% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+`;
+
 const spin = keyframes`
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -210,9 +217,13 @@ const hoverMixin = {
 } as const;
 
 // ─── Waiting state ────────────────────────────────────────────
-export const WaitingCard = styled(Card)({
+export const WaitingCard = styled(Card)(({ theme }) => ({
   ...hoverMixin,
-});
+  marginBottom: theme.spacing(0.5),
+  [theme.breakpoints.up('sm')]: {
+    marginBottom: theme.spacing(1),
+  },
+}));
 
 export const WaitingCardContent = styled(CardContent)({});
 
@@ -363,6 +374,10 @@ export const WinnerCelebrationIcon = styled(Box)(({ theme }) => ({
 // ─── Finished (no winner) state ──────────────────────────────
 export const FinishedCard = styled(Card)(({ theme }) => ({
   borderColor: theme.palette.error.main,
+  marginBottom: theme.spacing(0.5),
+  [theme.breakpoints.up('sm')]: {
+    marginBottom: theme.spacing(1),
+  },
 }));
 
 export const FinishedCardContent = styled(CardContent)({});
@@ -389,9 +404,82 @@ export const FinishedRound = styled(Typography)({
 });
 
 // ─── Bingo card ───────────────────────────────────────────────
-export const BingoCardOuter = styled(Card)({
+export const CardsScrollContainer = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'refreshing',
+})<{ refreshing?: boolean }>(({ theme, refreshing }) => ({
+  display: 'flex',
+  gap: theme.spacing(2),
+  overflowX: 'auto',
+  scrollSnapType: 'x mandatory',
+  WebkitOverflowScrolling: 'touch',
+  paddingBottom: theme.spacing(1),
+  marginLeft: theme.spacing(-2),
+  marginRight: theme.spacing(-2),
+  paddingLeft: theme.spacing(2),
+  paddingRight: theme.spacing(2),
+  // Ocultar scrollbar pero mantener funcionalidad
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': { display: 'none' },
+  ...(refreshing && {
+    overflow: 'hidden',
+    animation: `${cardsRefresh} 0.6s ease-in-out`,
+  }),
+}));
+
+export const BingoCardOuter = styled(Card)(({ theme }) => ({
   ...hoverMixin,
+  scrollSnapAlign: 'center',
+  flexShrink: 0,
+  // Ocupa todo el ancho visible del scroll container (menos padding)
+  width: `calc(100% - ${theme.spacing(2)})`,
+}));
+
+export const CardsNavWrapper = styled(Box)({
+  position: 'relative',
 });
+
+export const CardsArrowButton = styled(IconButton)(({ theme }) => ({
+  position: 'absolute',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  zIndex: 2,
+  backgroundColor: theme.palette.background.paper,
+  boxShadow: theme.shadows[3],
+  '&:hover': {
+    backgroundColor: theme.palette.action.hover,
+  },
+  // Ocultar en móvil (el swipe es suficiente)
+  display: 'none',
+  [theme.breakpoints.up('sm')]: {
+    display: 'inline-flex',
+  },
+}));
+
+export const CardsDots = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'center',
+  gap: theme.spacing(1),
+  paddingTop: theme.spacing(0.5),
+}));
+
+export const CardDot = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'active',
+})<{ active: boolean }>(({ theme, active }) => ({
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  cursor: 'pointer',
+  backgroundColor: active
+    ? theme.palette.primary.main
+    : theme.palette.action.disabled,
+  transition: 'background-color 0.3s, transform 0.3s',
+  transform: active ? 'scale(1.3)' : 'scale(1)',
+  '&:hover': {
+    backgroundColor: active
+      ? theme.palette.primary.main
+      : theme.palette.action.selected,
+  },
+}));
 
 export const BingoCardContent = styled(CardContent)(({ theme }) => ({
   paddingLeft: theme.spacing(1.5),
@@ -413,6 +501,12 @@ export const BingoCardHeaderRow = styled(Stack)(({ theme }) => ({
 }));
 
 export const BingoCardTitleGroup = styled(Stack)(({ theme }) => ({
+  flexDirection: 'row',
+  gap: theme.spacing(1),
+  alignItems: 'center',
+}));
+
+export const BingoCardHeaderActions = styled(Stack)(({ theme }) => ({
   flexDirection: 'row',
   gap: theme.spacing(1),
   alignItems: 'center',

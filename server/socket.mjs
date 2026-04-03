@@ -171,7 +171,7 @@ export function setupSocket(httpServer) {
     // Crear una nueva partida (el creador es el administrador)
     socket.on("game:create", async (data) => {
       try {
-        const { name, type } = data;
+        const { name, type, cardsPerPlayer } = data;
 
         if (!name || !type) {
           return socket.emit("error", "Nombre y tipo de juego son obligatorios");
@@ -180,11 +180,15 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "Tipo de juego no válido");
         }
 
+        // Validar cantidad de cartones (1-10, default 1)
+        const numCards = Math.max(1, Math.min(10, Math.floor(Number(cardsPerPlayer) || 1)));
+
         const adminToken = generateToken();
 
         const game = await Game.create({
           name: name.trim(),
           type,
+          cardsPerPlayer: numCards,
           adminToken,
           adminSocketId: socket.id,
         });
@@ -226,7 +230,8 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "La partida ya comenzó o finalizó");
         }
 
-        const card = generateCard();
+        // Generar la cantidad de cartones definida por el admin
+        const cards = Array.from({ length: game.cardsPerPlayer }, () => generateCard());
         const token = generateToken();
 
         const player = await Player.create({
@@ -234,7 +239,8 @@ export function setupSocket(httpServer) {
           game: game._id,
           token,
           socketId: socket.id,
-          card,
+          cards,
+          markedNumbersPerCard: cards.map(() => []),
           online: true,
         });
 
@@ -320,6 +326,68 @@ export function setupSocket(httpServer) {
       } catch (err) {
         console.error("Error al iniciar partida:", err);
         socket.emit("error", "No se pudo iniciar la partida");
+      }
+    });
+
+    // Actualizar cantidad de cartones por jugador (solo admin, solo en espera)
+    socket.on("game:update-cards-per-player", async ({ gameId, token, cardsPerPlayer }) => {
+      try {
+        if (!isValidObjectId(gameId)) {
+          return socket.emit("error", "Código de partida no válido");
+        }
+        if (!(await isAdmin(gameId, token))) {
+          return socket.emit("error", "Solo el administrador puede cambiar esta configuración");
+        }
+
+        const game = await Game.findById(gameId);
+        if (!game) return socket.emit("error", "Partida no encontrada");
+        if (game.status !== "waiting") {
+          return socket.emit("error", "Solo se puede cambiar antes de iniciar la partida");
+        }
+
+        const numCards = Math.max(1, Math.min(10, Math.floor(Number(cardsPerPlayer) || 1)));
+        const oldCount = game.cardsPerPlayer;
+        game.cardsPerPlayer = numCards;
+        await game.save();
+
+        // Ajustar cartones de cada jugador
+        if (numCards !== oldCount) {
+          const players = await Player.find({ game: gameId });
+          await Promise.all(
+            players.map((p) => {
+              const currentCards = p.cards || [];
+              const currentMarked = p.markedNumbersPerCard || [];
+              if (numCards > currentCards.length) {
+                // Agregar cartones nuevos
+                for (let i = currentCards.length; i < numCards; i++) {
+                  currentCards.push(generateCard());
+                  currentMarked.push([]);
+                }
+              } else if (numCards < currentCards.length) {
+                // Recortar al nuevo tamaño
+                currentCards.length = numCards;
+                currentMarked.length = numCards;
+              }
+              p.cards = currentCards;
+              p.markedNumbersPerCard = currentMarked;
+              p.markModified("cards");
+              p.markModified("markedNumbersPerCard");
+              return p.save();
+            })
+          );
+        }
+
+        // Notificar a todos en la sala
+        const updatedPlayers = await Player.find({ game: gameId }).lean();
+        io.to(`game:${gameId}`).emit("game:cards-per-player-updated", {
+          game: game.toObject(),
+          players: updatedPlayers,
+        });
+
+        console.log(`📋 Cartones por jugador actualizados a ${numCards} en "${game.name}"`);
+      } catch (err) {
+        console.error("Error al actualizar cartones por jugador:", err);
+        socket.emit("error", "No se pudo actualizar la cantidad de cartones");
       }
     });
 
@@ -457,8 +525,15 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "No eres jugador de esta partida");
         }
 
-        // Verificar si realmente ganó
-        const won = checkWin(player.card, player.markedNumbers, game.type);
+        // Verificar si realmente ganó con ALGUNO de sus cartones
+        let won = false;
+        for (let i = 0; i < player.cards.length; i++) {
+          const markedNums = player.markedNumbersPerCard[i] || [];
+          if (checkWin(player.cards[i], markedNums, game.type)) {
+            won = true;
+            break;
+          }
+        }
         if (!won) {
           socket.emit("game:bingo-invalid", "¡Bingo falso! No cumples la condición de victoria");
           io.to(`game:${gameId}`).emit("game:bingo-attempt", {
@@ -490,8 +565,8 @@ export function setupSocket(httpServer) {
       }
     });
 
-    // Jugador marca un número en su cartón
-    socket.on("game:mark", async ({ gameId, number, token }) => {
+    // Jugador marca un número en un cartón específico
+    socket.on("game:mark", async ({ gameId, number, token, cardIndex }) => {
       try {
         if (!isValidObjectId(gameId)) return;
 
@@ -503,17 +578,18 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "Ese número no ha sido cantado");
         }
 
+        const idx = Number(cardIndex) || 0;
         await Player.updateOne(
           { game: gameId, token },
-          { $addToSet: { markedNumbers: number } }
+          { $addToSet: { [`markedNumbersPerCard.${idx}`]: number } }
         );
       } catch (err) {
         console.error("Error al marcar número:", err);
       }
     });
 
-    // Jugador cambia su cartón (solo si la partida está en espera)
-    socket.on("game:change-card", async ({ gameId, token }) => {
+    // Jugador cambia un cartón específico (solo si la partida está en espera)
+    socket.on("game:change-card", async ({ gameId, token, cardIndex }) => {
       try {
         // Throttle para prevenir doble-clic
         if (isThrottled(socket.id, "game:change-card")) {
@@ -535,14 +611,21 @@ export function setupSocket(httpServer) {
           return socket.emit("error", "No eres jugador de esta partida");
         }
 
-        // Generar nuevo cartón
+        const idx = Number(cardIndex) || 0;
+        if (idx < 0 || idx >= player.cards.length) {
+          return socket.emit("error", "Índice de cartón no válido");
+        }
+
+        // Generar nuevo cartón para el índice específico
         const newCard = generateCard();
-        player.card = newCard;
-        player.markedNumbers = [];
+        player.cards[idx] = newCard;
+        player.markedNumbersPerCard[idx] = [];
+        player.markModified("cards");
+        player.markModified("markedNumbersPerCard");
         await player.save();
 
-        socket.emit("game:card-changed", { card: newCard });
-        console.log(`🔄 ${player.name} cambió su cartón en "${game.name}"`);
+        socket.emit("game:card-changed", { card: newCard, cardIndex: idx });
+        console.log(`🔄 ${player.name} cambió su cartón #${idx + 1} en "${game.name}"`);
       } catch (err) {
         console.error("Error al cambiar cartón:", err);
         socket.emit("error", "No se pudo cambiar el cartón");
@@ -585,8 +668,10 @@ export function setupSocket(httpServer) {
         const players = await Player.find({ game: gameId });
         await Promise.all(
           players.map((p) => {
-            p.card = generateCard();
-            p.markedNumbers = [];
+            p.cards = Array.from({ length: game.cardsPerPlayer }, () => generateCard());
+            p.markedNumbersPerCard = p.cards.map(() => []);
+            p.markModified("cards");
+            p.markModified("markedNumbersPerCard");
             return p.save();
           })
         );

@@ -5,13 +5,14 @@ export interface GameData {
   status: string;
   round: number;
   calledNumbers: number[];
+  cardsPerPlayer: number;
 }
 
 export interface PlayerData {
   _id: string;
   name: string;
-  card: number[][];
-  markedNumbers: number[];
+  cards: number[][][];
+  markedNumbersPerCard: number[][];
 }
 
 export interface PlayerNotification {
