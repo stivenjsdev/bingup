@@ -567,7 +567,7 @@ export default function Home() {
         {/* Footer */}
         <Fade in timeout={1000} style={{ transitionDelay: "500ms" }}>
           <Typography variant="caption" align="center" color="text.disabled" sx={{ mt: 4 }}>
-            BingUp v0.1.0 — Juego de Bingo en tiempo real
+            BingUp v0.2.0 — Juego de Bingo en tiempo real
           </Typography>
         </Fade>
       </Box>

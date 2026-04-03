@@ -1111,7 +1111,7 @@ export default function PlayPage() {
         {/* Footer */}
         <Fade in timeout={1000} style={{ transitionDelay: "400ms" }}>
           <Typography variant="caption" align="center" color="text.disabled" sx={{ mt: 3, display: "block" }}>
-            BingUp v0.1.0 — ¡Buena suerte! 🍀
+            BingUp v0.2.0 — ¡Buena suerte! 🍀
           </Typography>
         </Fade>
       </Box>
